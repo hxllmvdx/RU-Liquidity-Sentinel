@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package liquidity.v1;
+
+import "liquidity/v1/common.proto";
+import "liquidity/v1/lsi.proto";
+
+option go_package = "github.com/your-org/ru-liquidity-sentinel/backend/gen/go/liquidity/v1;liquidityv1";
+
+enum StressEpisode {
+  STRESS_EPISODE_UNSPECIFIED = 0;
+  STRESS_EPISODE_DECEMBER_2014 = 1;
+  STRESS_EPISODE_FEBRUARY_MARCH_2022 = 2;
+  STRESS_EPISODE_AUGUST_2023 = 3;
+  STRESS_EPISODE_CUSTOM = 4;
+}
+
+message GetBacktestRequest {
+  StressEpisode episode = 1;
+  DateRange custom_range = 2;
+  bool include_shap = 3;
+  bool include_module_breakdown = 4;
+}
+
+message BacktestMetric {
+  string name = 1;
+  double value = 2;
+  string unit = 3;
+}
+
+message BacktestEvent {
+  string date = 1;
+  string title = 2;
+  string description = 3;
+  double lsi = 4;
+  Status status = 5;
+}
+
+message BacktestResponse {
+  StressEpisode episode = 1;
+  DateRange range = 2;
+  repeated LSIHistoryPoint lsi_history = 3;
+  repeated BacktestMetric metrics = 4;
+  repeated BacktestEvent events = 5;
+  repeated ModuleContribution average_contributions = 6;
+  string conclusion = 7;
+}
