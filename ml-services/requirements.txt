@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pandas
+numpy
+scipy
+scikit-learn
+shap
+psycopg[binary]
+redis
+grpcio
+grpcio-tools
+pydantic
