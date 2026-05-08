@@ -4,16 +4,16 @@ import type { ForecastPoint } from "@/shared/types/dashboard";
 
 export function ForecastTable({ forecast }: { forecast: ForecastPoint[] }) {
   return (
-    <SectionCard title="Forecast details" description="Короткий прогноз не следует трактовать как факт. Он нужен как сигнал повышенного внимания.">
+    <SectionCard title="Детали прогноза" description="Короткий прогноз не следует трактовать как факт. Он нужен как сигнал повышенного внимания.">
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="text-left text-muted">
             <tr className="border-b">
-              <th className="pb-3 font-medium">Horizon</th>
-              <th className="pb-3 font-medium">Target date</th>
+              <th className="pb-3 font-medium">Горизонт</th>
+              <th className="pb-3 font-medium">Целевая дата</th>
               <th className="pb-3 font-medium">LSI</th>
-              <th className="pb-3 font-medium">Status</th>
-              <th className="pb-3 font-medium">Confidence</th>
+              <th className="pb-3 font-medium">Статус</th>
+              <th className="pb-3 font-medium">Уверенность</th>
             </tr>
           </thead>
           <tbody>

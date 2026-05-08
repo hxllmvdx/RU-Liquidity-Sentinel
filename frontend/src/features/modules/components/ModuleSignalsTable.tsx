@@ -3,17 +3,17 @@ import type { ModuleSignal } from "@/shared/types/modules";
 
 export function ModuleSignalsTable({ signals }: { signals: ModuleSignal[] }) {
   return (
-    <SectionCard title="Signals table" description="Сырые сигналы и MAD-оценки для выбранного модуля.">
+    <SectionCard title="Таблица сигналов" description="Сырые сигналы и MAD-оценки для выбранного модуля.">
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="text-left text-muted">
             <tr className="border-b">
-              <th className="pb-3 font-medium">Date</th>
-              <th className="pb-3 font-medium">Signal</th>
-              <th className="pb-3 font-medium">Raw value</th>
+              <th className="pb-3 font-medium">Дата</th>
+              <th className="pb-3 font-medium">Сигнал</th>
+              <th className="pb-3 font-medium">Сырое значение</th>
               <th className="pb-3 font-medium">MAD score</th>
-              <th className="pb-3 font-medium">Unit</th>
-              <th className="pb-3 font-medium">Flag</th>
+              <th className="pb-3 font-medium">Ед.</th>
+              <th className="pb-3 font-medium">Флаг</th>
             </tr>
           </thead>
           <tbody>
@@ -24,7 +24,7 @@ export function ModuleSignalsTable({ signals }: { signals: ModuleSignal[] }) {
                 <td className="py-3">{signal.raw_value.toFixed(2)}</td>
                 <td className="py-3">{signal.mad_score.toFixed(2)}</td>
                 <td className="py-3">{signal.unit}</td>
-                <td className="py-3">{signal.flag ? "Yes" : "No"}</td>
+                <td className="py-3">{signal.flag ? "Да" : "Нет"}</td>
               </tr>
             ))}
           </tbody>

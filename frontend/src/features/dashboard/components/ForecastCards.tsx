@@ -5,7 +5,7 @@ import type { ForecastPoint } from "@/shared/types/dashboard";
 
 export function ForecastCards({ forecast }: { forecast: ForecastPoint[] }) {
   return (
-    <SectionCard title="Forecast" description="Короткий горизонт предупреждения на 1d, 3d и 7d. Это сигнал раннего внимания, а не факт будущего события.">
+    <SectionCard title="Прогноз" description="Короткий горизонт предупреждения на 1d, 3d и 7d. Это сигнал раннего внимания, а не факт будущего события.">
       <div className="grid gap-4 md:grid-cols-3">
         {forecast.map((item) => (
           <div className="rounded-2xl border bg-slate-50 p-4" key={item.horizon}>
@@ -15,7 +15,7 @@ export function ForecastCards({ forecast }: { forecast: ForecastPoint[] }) {
             </div>
             <p className="mt-4 text-3xl font-semibold">{formatLsi(item.lsi)}</p>
             <p className="mt-2 text-sm text-muted">{formatDateLabel(item.target_date)}</p>
-            <p className="mt-1 text-sm text-muted">Confidence {Math.round(item.confidence * 100)}%</p>
+            <p className="mt-1 text-sm text-muted">Уверенность {Math.round(item.confidence * 100)}%</p>
           </div>
         ))}
       </div>

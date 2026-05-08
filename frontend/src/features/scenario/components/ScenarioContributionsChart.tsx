@@ -6,7 +6,7 @@ import type { ModuleContribution } from "@/shared/types/dashboard";
 
 export function ScenarioContributionsChart({ contributions }: { contributions: ModuleContribution[] }) {
   return (
-    <SectionCard title="Changed contributions" description="После шока можно быстро увидеть, какие модули сильнее всего сдвинули итоговый индекс.">
+    <SectionCard title="Изменившиеся вклады" description="После шока можно быстро увидеть, какие модули сильнее всего сдвинули итоговый индекс.">
       <ReactECharts
         option={{
           grid: { left: 24, right: 16, top: 20, bottom: 24, containLabel: true },

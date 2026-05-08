@@ -17,11 +17,11 @@ export function ErrorState({
           <AlertTriangle className="h-5 w-5" />
         </div>
         <div className="space-y-2">
-          <h3 className="text-lg font-semibold">Data unavailable</h3>
+          <h3 className="text-lg font-semibold">Данные недоступны</h3>
           <p className="max-w-2xl text-sm leading-6 text-muted">{message}</p>
           {onRetry ? (
             <Button onClick={onRetry} variant="outline">
-              Retry
+              Повторить
             </Button>
           ) : null}
         </div>

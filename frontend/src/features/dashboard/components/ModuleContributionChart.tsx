@@ -6,7 +6,7 @@ import type { ModuleContribution } from "@/shared/types/dashboard";
 
 export function ModuleContributionChart({ contributions }: { contributions: ModuleContribution[] }) {
   return (
-    <SectionCard title="Module contributions" description="Отображает вклад модулей М1-М5 в текущий уровень индекса.">
+    <SectionCard title="Вклады модулей" description="Отображает вклад модулей М1-М5 в текущий уровень индекса.">
       <ReactECharts
         option={{
           grid: { left: 24, right: 16, top: 24, bottom: 24, containLabel: true },

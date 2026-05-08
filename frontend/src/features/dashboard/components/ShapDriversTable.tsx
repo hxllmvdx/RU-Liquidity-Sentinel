@@ -3,15 +3,15 @@ import type { ShapValue } from "@/shared/types/dashboard";
 
 export function ShapDriversTable({ shapValues }: { shapValues: ShapValue[] }) {
   return (
-    <SectionCard title="SHAP top drivers" description="Ключевые факторы, которые сильнее всего влияют на текущий расчёт LSI.">
+    <SectionCard title="Топ-драйверы SHAP" description="Ключевые факторы, которые сильнее всего влияют на текущий расчёт LSI.">
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="text-left text-muted">
             <tr className="border-b">
-              <th className="pb-3 font-medium">Feature</th>
-              <th className="pb-3 font-medium">Module</th>
-              <th className="pb-3 font-medium">Value</th>
-              <th className="pb-3 font-medium">Abs value</th>
+              <th className="pb-3 font-medium">Признак</th>
+              <th className="pb-3 font-medium">Модуль</th>
+              <th className="pb-3 font-medium">Значение</th>
+              <th className="pb-3 font-medium">Абс. значение</th>
             </tr>
           </thead>
           <tbody>

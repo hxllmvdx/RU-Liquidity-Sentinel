@@ -13,7 +13,7 @@ export function LsiHeroCard({ dashboard }: { dashboard: DashboardResponse }) {
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Current LSI</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Текущий LSI</p>
             <StatusBadge status={dashboard.status} />
           </div>
           <p className="mt-4 text-6xl font-semibold leading-none">{formatLsi(dashboard.lsi)}</p>
@@ -22,13 +22,13 @@ export function LsiHeroCard({ dashboard }: { dashboard: DashboardResponse }) {
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:w-[420px]">
-          <MetricCard label="Calculation date" value={formatDateLabel(dashboard.date)} />
-          <MetricCard label="Confidence" value={`${Math.round(dashboard.confidence * 100)}%`} />
+          <MetricCard label="Дата расчёта" value={formatDateLabel(dashboard.date)} />
+          <MetricCard label="Уверенность" value={`${Math.round(dashboard.confidence * 100)}%`} />
         </div>
       </div>
       <div className="mt-6 space-y-2">
         <div className="flex items-center justify-between text-xs font-medium uppercase tracking-[0.18em] text-muted">
-          <span>LSI gauge</span>
+          <span>Шкала LSI</span>
           <span>{formatLsi(dashboard.lsi)}/100</span>
         </div>
         <div className="h-3 overflow-hidden rounded-full bg-primary-soft">

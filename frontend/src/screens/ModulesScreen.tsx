@@ -10,13 +10,13 @@ export function ModulesScreen() {
   const { modulesQuery, snapshotQuery } = useModules();
 
   if (modulesQuery.isLoading || snapshotQuery.isLoading) {
-    return <LoadingState label="Loading modules snapshot..." />;
+    return <LoadingState label="Загрузка среза модулей..." />;
   }
 
   if (modulesQuery.error || snapshotQuery.error || !modulesQuery.data || !snapshotQuery.data) {
     return (
       <ErrorState
-        message={(modulesQuery.error as Error)?.message ?? (snapshotQuery.error as Error)?.message ?? "Modules are unavailable."}
+        message={(modulesQuery.error as Error)?.message ?? (snapshotQuery.error as Error)?.message ?? "Модули недоступны."}
         onRetry={() => {
           void modulesQuery.refetch();
           void snapshotQuery.refetch();
@@ -27,7 +27,7 @@ export function ModulesScreen() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Modules overview" description="Карточки пяти основных модулей стресс-мониторинга: от резервов и репо до налоговой недели и потоков казначейства." />
+      <PageHeader title="Обзор модулей" description="Карточки пяти основных модулей стресс-мониторинга: от резервов и репо до налоговой недели и потоков казначейства." />
       <div className="grid gap-6 xl:grid-cols-2">
         {modulesQuery.data.modules.map((module) => (
           <ModuleCard

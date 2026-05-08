@@ -6,7 +6,7 @@ import type { ModuleSignal } from "@/shared/types/modules";
 
 export function ModuleSignalsChart({ signals }: { signals: ModuleSignal[] }) {
   return (
-    <SectionCard title="Signals chart" description="Линейный график MAD score для быстрого поиска всплесков напряжения.">
+    <SectionCard title="График сигналов" description="Линейный график MAD score для быстрого поиска всплесков напряжения.">
       <ReactECharts
         option={{
           tooltip: { trigger: "axis" },

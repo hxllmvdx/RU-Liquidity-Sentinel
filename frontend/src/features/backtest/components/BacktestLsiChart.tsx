@@ -6,7 +6,7 @@ import type { LsiHistoryPoint } from "@/shared/types/lsi";
 
 export function BacktestLsiChart({ history }: { history: LsiHistoryPoint[] }) {
   return (
-    <SectionCard title="Backtest LSI chart" description="Исторический ряд выбранного стресс-эпизода для проверки своевременности сигнала.">
+    <SectionCard title="График LSI для бэктеста" description="Исторический ряд выбранного стресс-эпизода для проверки своевременности сигнала.">
       <ReactECharts
         option={{
           tooltip: { trigger: "axis" },

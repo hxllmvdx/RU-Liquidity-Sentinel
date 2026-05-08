@@ -1,4 +1,4 @@
-export function LoadingState({ label = "Loading data..." }: { label?: string }) {
+export function LoadingState({ label = "Загрузка данных..." }: { label?: string }) {
   return (
     <div className="rounded-[26px] border bg-white p-6 shadow-panel">
       <div className="animate-pulse space-y-3">

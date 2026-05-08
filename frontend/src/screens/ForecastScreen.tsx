@@ -12,13 +12,13 @@ export function ForecastScreen() {
   const { dashboardQuery, historyQuery } = useForecast();
 
   if (dashboardQuery.isLoading || historyQuery.isLoading) {
-    return <LoadingState label="Loading forecast..." />;
+    return <LoadingState label="Загрузка прогноза..." />;
   }
 
   if (dashboardQuery.error || historyQuery.error || !dashboardQuery.data || !historyQuery.data) {
     return (
       <ErrorState
-        message={(dashboardQuery.error as Error)?.message ?? (historyQuery.error as Error)?.message ?? "Forecast data is unavailable."}
+        message={(dashboardQuery.error as Error)?.message ?? (historyQuery.error as Error)?.message ?? "Данные прогноза недоступны."}
         onRetry={() => {
           void dashboardQuery.refetch();
           void historyQuery.refetch();
@@ -29,7 +29,7 @@ export function ForecastScreen() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Forecast workspace" description="Короткий прогноз LSI на горизонтах 1d, 3d и 7d. Используйте этот экран как early warning, а не как утверждение о будущем факте." />
+      <PageHeader title="Рабочее пространство прогноза" description="Короткий прогноз LSI на горизонтах 1d, 3d и 7d. Используйте этот экран как раннее предупреждение, а не как утверждение о будущем факте." />
       <ForecastOverview forecast={dashboardQuery.data.forecast} />
       <ForecastChart forecast={dashboardQuery.data.forecast} history={historyQuery.data.points} />
       <ForecastTable forecast={dashboardQuery.data.forecast} />

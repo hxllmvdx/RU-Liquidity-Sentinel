@@ -7,9 +7,9 @@ export function ForecastOverview({ forecast }: { forecast: ForecastPoint[] }) {
     <div className="grid gap-4 md:grid-cols-3">
       {forecast.map((point) => (
         <MetricCard
-          hint={`Target date ${formatDateLabel(point.target_date)} | Confidence ${Math.round(point.confidence * 100)}%`}
+          hint={`Целевая дата ${formatDateLabel(point.target_date)} | Уверенность ${Math.round(point.confidence * 100)}%`}
           key={point.horizon}
-          label={`Forecast ${point.horizon}`}
+          label={`Прогноз ${point.horizon}`}
           status={point.status}
           value={formatLsi(point.lsi)}
         />

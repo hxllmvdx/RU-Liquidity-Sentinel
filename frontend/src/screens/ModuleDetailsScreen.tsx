@@ -17,15 +17,15 @@ export function ModuleDetailsScreen({ id }: { id: string }) {
   const query = useModuleSignals(moduleId, "2022-02-01", "2022-03-31", isValid);
 
   if (!isValid) {
-    return <ErrorState message={`Module id "${id}" is invalid.`} />;
+    return <ErrorState message={`Идентификатор модуля "${id}" некорректен.`} />;
   }
 
   if (query.isLoading) {
-    return <LoadingState label="Loading module signals..." />;
+    return <LoadingState label="Загрузка сигналов модуля..." />;
   }
 
   if (query.error || !query.data) {
-    return <ErrorState message={(query.error as Error)?.message ?? "Module signals are unavailable."} onRetry={() => void query.refetch()} />;
+    return <ErrorState message={(query.error as Error)?.message ?? "Сигналы модуля недоступны."} onRetry={() => void query.refetch()} />;
   }
 
   return (
@@ -40,7 +40,7 @@ export function ModuleDetailsScreen({ id }: { id: string }) {
           </div>
         </div>
       ) : (
-        <EmptyState title="No signals found" description="Для выбранного диапазона нет сигналов. Попробуйте другой период или проверьте наличие данных в backend." />
+        <EmptyState title="Сигналы не найдены" description="Для выбранного диапазона нет сигналов. Попробуйте другой период или проверьте наличие данных в backend." />
       )}
     </div>
   );

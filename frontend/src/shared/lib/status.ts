@@ -1,10 +1,10 @@
 import type { Status } from "@/shared/types/common";
 
 export const STATUS_LABELS: Record<Status, string> = {
-  green: "Green",
-  yellow: "Yellow",
-  red: "Red",
-  unspecified: "Unspecified"
+  green: "Зелёный",
+  yellow: "Жёлтый",
+  red: "Красный",
+  unspecified: "Не указан"
 };
 
 export const STATUS_STYLES: Record<Status, string> = {

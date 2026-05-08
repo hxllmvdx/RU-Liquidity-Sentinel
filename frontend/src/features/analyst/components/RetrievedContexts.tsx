@@ -3,7 +3,7 @@ import type { AnalystContext } from "@/shared/types/analyst";
 
 export function RetrievedContexts({ contexts }: { contexts: AnalystContext[] }) {
   return (
-    <SectionCard title="Retrieved contexts" description="Контексты RAG, использованные для подготовки ответа аналитика.">
+    <SectionCard title="Извлечённые контексты" description="Контексты RAG, использованные для подготовки ответа аналитика.">
       <div className="space-y-3">
         {contexts.map((context, index) => (
           <div className="rounded-2xl border bg-slate-50 p-4" key={`${context.title}-${index}`}>

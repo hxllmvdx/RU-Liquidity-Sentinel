@@ -21,10 +21,10 @@ const defaultShock: ScenarioShock = {
 };
 
 const presets: Record<string, ScenarioShock[]> = {
-  "Treasury outflow shock": [{ feature_name: "treasury_delta_week", module_id: "M5_TREASURY", delta: 300, absolute_value: 0, unit: "bln_rub" }],
-  "Repo demand spike": [{ feature_name: "repo_demand_spike", module_id: "M2_REPO", delta: 2.5, absolute_value: 0, unit: "ratio" }],
-  "Tax week pressure": [{ feature_name: "tax_week_flag", module_id: "M4_TAX", delta: 1, absolute_value: 1, unit: "flag" }],
-  "OFZ weak demand": [{ feature_name: "ofz_bid_cover", module_id: "M3_OFZ", delta: -0.8, absolute_value: 0, unit: "ratio" }]
+  "Шок оттока казначейства": [{ feature_name: "treasury_delta_week", module_id: "M5_TREASURY", delta: 300, absolute_value: 0, unit: "bln_rub" }],
+  "Всплеск спроса на репо": [{ feature_name: "repo_demand_spike", module_id: "M2_REPO", delta: 2.5, absolute_value: 0, unit: "ratio" }],
+  "Давление налоговой недели": [{ feature_name: "tax_week_flag", module_id: "M4_TAX", delta: 1, absolute_value: 1, unit: "flag" }],
+  "Слабый спрос на ОФЗ": [{ feature_name: "ofz_bid_cover", module_id: "M3_OFZ", delta: -0.8, absolute_value: 0, unit: "ratio" }]
 };
 
 export function ScenarioForm() {
@@ -43,13 +43,13 @@ export function ScenarioForm() {
 
   return (
     <div className="space-y-6">
-      <SectionCard title="What-if simulator" description="Меняйте базовую дату, налоговую неделю и параметры шоков, чтобы оперативно оценивать сценарии стресса.">
+      <SectionCard title="What-if симулятор" description="Меняйте базовую дату, налоговую неделю и параметры шоков, чтобы оперативно оценивать сценарии стресса.">
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-[240px_auto] md:items-center">
             <Input type="date" value={baseDate} onChange={(event) => setBaseDate(event.target.value)} />
             <div className="flex items-center gap-3">
               <Switch checked={taxWeekEnabled} onCheckedChange={setTaxWeekEnabled} />
-              <span className="text-sm text-muted">Tax week enabled</span>
+              <span className="text-sm text-muted">Налоговая неделя включена</span>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -76,10 +76,10 @@ export function ScenarioForm() {
               variant="outline"
             >
               <Plus className="h-4 w-4" />
-              Add shock
+              Добавить шок
             </Button>
             <Button onClick={submit} type="button">
-              Run scenario
+              Запустить сценарий
             </Button>
           </div>
         </div>

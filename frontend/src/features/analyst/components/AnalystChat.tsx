@@ -34,21 +34,21 @@ export function AnalystChat() {
         status: "yellow",
         module_contributions: [{ name: "M2_REPO", value: 24 }],
         active_flags: ["Flag_Demand"],
-        upcoming_events: ["Tax week starts in 2 days"]
+        upcoming_events: ["Налоговая неделя начнётся через 2 дня"]
       });
     }
   };
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-      <SectionCard title="Analyst chat" description="Интерфейс для проверки `/api/analyst/chat` и сценариев RAG/LLM до полной готовности ML-слоя.">
+      <SectionCard title="Чат аналитика" description="Интерфейс для проверки `/api/analyst/chat` и сценариев RAG/LLM до полной готовности ML-слоя.">
         <div className="space-y-4">
           <SuggestedQuestions onSelect={setSelectedQuestion} />
           <div className="flex min-h-[360px] flex-col gap-3 rounded-2xl border bg-slate-50 p-4">
             {messages.length ? (
               messages.map((message, index) => <ChatMessage content={message.content} key={index} role={message.role} />)
             ) : (
-              <p className="text-sm text-muted">Start with a suggested question or enter your own prompt.</p>
+              <p className="text-sm text-muted">Начните с предложенного вопроса или введите свой запрос.</p>
             )}
           </div>
           <ChatInput loading={chatMutation.isPending} onSend={sendMessage} preset={selectedQuestion} />

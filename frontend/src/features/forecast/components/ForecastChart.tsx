@@ -13,11 +13,11 @@ export function ForecastChart({
   forecast: ForecastPoint[];
 }) {
   return (
-    <SectionCard title="Historical LSI + forecast" description="Forecast points показываются поверх исторического ряда как аналитический early warning.">
+    <SectionCard title="Исторический LSI и прогноз" description="Точки прогноза показываются поверх исторического ряда как аналитический сигнал раннего предупреждения.">
       <ReactECharts
         option={{
           tooltip: { trigger: "axis" },
-          legend: { data: ["History", "Forecast"] },
+          legend: { data: ["История", "Прогноз"] },
           grid: { left: 24, right: 16, top: 30, bottom: 24, containLabel: true },
           xAxis: {
             type: "category",
@@ -26,14 +26,14 @@ export function ForecastChart({
           yAxis: { type: "value", min: 0, max: 100, splitLine: { lineStyle: { color: "#e3edf8" } } },
           series: [
             {
-              name: "History",
+              name: "История",
               type: "line",
               smooth: true,
               data: [...history.map((point) => point.lsi), ...forecast.map(() => null)],
               lineStyle: { color: "#1459b8", width: 3 }
             },
             {
-              name: "Forecast",
+              name: "Прогноз",
               type: "line",
               smooth: true,
               data: [...history.map(() => null), ...forecast.map((point) => point.lsi)],

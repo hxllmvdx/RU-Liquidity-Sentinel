@@ -9,7 +9,7 @@ export function BacktestEvents({
   conclusion: string;
 }) {
   return (
-    <SectionCard title="Average contributions and conclusion" description="Средние вклады модулей помогают понять структуру стресса в выбранном эпизоде.">
+    <SectionCard title="Средние вклады и вывод" description="Средние вклады модулей помогают понять структуру стресса в выбранном эпизоде.">
       <div className="space-y-3">
         {contributions.map((contribution) => (
           <div className="flex items-center justify-between rounded-xl border bg-slate-50 px-4 py-3 text-sm" key={contribution.module_id}>

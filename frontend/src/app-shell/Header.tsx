@@ -10,13 +10,13 @@ export function Header() {
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">RU Liquidity Sentinel</p>
-            <h1 className="text-lg font-semibold">Liquidity stress early warning console</h1>
+            <h1 className="text-lg font-semibold">Консоль раннего предупреждения стресса ликвидности</h1>
           </div>
         </div>
         <div className="flex items-center gap-3 text-sm text-muted">
           <div className="hidden items-center gap-2 rounded-full border bg-primary-soft px-3 py-1.5 md:flex">
             <ShieldAlert className="h-4 w-4 text-accent" />
-            <span>Analytical monitoring mode</span>
+            <span>Режим аналитического мониторинга</span>
           </div>
           <button className="rounded-full border bg-white p-2 text-primary transition hover:bg-primary-soft" type="button">
             <Bell className="h-4 w-4" />

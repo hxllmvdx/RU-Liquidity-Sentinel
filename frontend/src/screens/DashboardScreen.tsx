@@ -17,13 +17,13 @@ export function DashboardScreen() {
   const { dashboardQuery, historyQuery } = useDashboard();
 
   if (dashboardQuery.isLoading || historyQuery.isLoading) {
-    return <LoadingState label="Loading dashboard snapshot..." />;
+    return <LoadingState label="Загрузка среза дашборда..." />;
   }
 
   if (dashboardQuery.error || historyQuery.error || !dashboardQuery.data || !historyQuery.data) {
     return (
       <ErrorState
-        message={(dashboardQuery.error as Error)?.message ?? (historyQuery.error as Error)?.message ?? "Dashboard data is unavailable."}
+        message={(dashboardQuery.error as Error)?.message ?? (historyQuery.error as Error)?.message ?? "Данные дашборда недоступны."}
         onRetry={() => {
           void dashboardQuery.refetch();
           void historyQuery.refetch();
@@ -37,7 +37,7 @@ export function DashboardScreen() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Liquidity stress dashboard"
+        title="Дашборд стресса ликвидности"
         description="Главный монитор текущего состояния рублёвого денежного рынка: LSI, вклад модулей, драйверы SHAP, активные флаги и ближайший прогноз."
       />
       <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
