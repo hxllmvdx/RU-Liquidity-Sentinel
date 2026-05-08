@@ -4,15 +4,16 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ru-liquidity-sentinel/backend/internal/grpcclient"
+	"github.com/ru-liquidity-sentinel/backend/internal/dto"
+	"github.com/ru-liquidity-sentinel/backend/internal/service"
 )
 
 type BacktestHandler struct {
-	liquidityClient *grpcclient.LiquidityClient
+	backtestService *service.BacktestService
 }
 
-func NewBacktestHandler(liquidityClient *grpcclient.LiquidityClient) *BacktestHandler {
-	return &BacktestHandler{liquidityClient: liquidityClient}
+func NewBacktestHandler(backtestService *service.BacktestService) *BacktestHandler {
+	return &BacktestHandler{backtestService: backtestService}
 }
 
 func (h *BacktestHandler) GetBacktest(c *gin.Context) {
@@ -34,7 +35,7 @@ func (h *BacktestHandler) GetBacktest(c *gin.Context) {
 		}
 	}
 
-	req := grpcclient.BacktestRequest{
+	req := dto.BacktestRequest{
 		Episode:                episode,
 		From:                   from,
 		To:                     to,
@@ -42,7 +43,7 @@ func (h *BacktestHandler) GetBacktest(c *gin.Context) {
 		IncludeModuleBreakdown: parseBoolQuery(c, "include_module_breakdown", true),
 	}
 
-	resp, err := h.liquidityClient.GetBacktest(c.Request.Context(), req)
+	resp, err := h.backtestService.GetBacktest(c.Request.Context(), req)
 	if err != nil {
 		writeError(c, http.StatusBadGateway, "ML_SERVICE_UNAVAILABLE", "failed to call ML service")
 		return

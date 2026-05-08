@@ -4,47 +4,24 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ru-liquidity-sentinel/backend/internal/grpcclient"
+	"github.com/ru-liquidity-sentinel/backend/internal/service"
 )
 
-var staticModules = []grpcclient.ModuleDefinition{
-	{
-		ModuleID:    "M1_RESERVES",
-		ModuleName:  "Усреднение обязательных резервов",
-		Description: "Оценивает напряжение через спред обязательных резервов и RUONIA.",
-	},
-	{
-		ModuleID:    "M2_REPO",
-		ModuleName:  "Аукционы репо ЦБ",
-		Description: "Оценивает спрос банков на ликвидность через cover ratio и ставочные спреды.",
-	},
-	{
-		ModuleID:    "M3_OFZ",
-		ModuleName:  "Размещение ОФЗ",
-		Description: "Оценивает спрос на государственные облигации и признаки недоспроса.",
-	},
-	{
-		ModuleID:    "M4_TAX",
-		ModuleName:  "Налоговый период и сезонность",
-		Description: "Учитывает налоговые даты, конец месяца и квартала как сезонный фактор.",
-	},
-	{
-		ModuleID:    "M5_TREASURY",
-		ModuleName:  "Средства федерального казначейства",
-		Description: "Отслеживает бюджетный канал притока и оттока ликвидности.",
-	},
-}
-
 type ModulesHandler struct {
-	liquidityClient *grpcclient.LiquidityClient
+	modulesService *service.ModulesService
 }
 
-func NewModulesHandler(liquidityClient *grpcclient.LiquidityClient) *ModulesHandler {
-	return &ModulesHandler{liquidityClient: liquidityClient}
+func NewModulesHandler(modulesService *service.ModulesService) *ModulesHandler {
+	return &ModulesHandler{modulesService: modulesService}
 }
 
 func (h *ModulesHandler) ListModules(c *gin.Context) {
-	c.JSON(http.StatusOK, grpcclient.ModulesListResponse{Modules: staticModules})
+	resp, err := h.modulesService.ListModules(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusBadGateway, "ML_SERVICE_UNAVAILABLE", "failed to call ML service")
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *ModulesHandler) GetSignals(c *gin.Context) {
@@ -67,7 +44,7 @@ func (h *ModulesHandler) GetSignals(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.liquidityClient.GetModuleSignals(c.Request.Context(), moduleID, from, to)
+	resp, err := h.modulesService.GetSignals(c.Request.Context(), moduleID, from, to)
 	if err != nil {
 		writeError(c, http.StatusBadGateway, "ML_SERVICE_UNAVAILABLE", "failed to call ML service")
 		return
@@ -83,7 +60,7 @@ func (h *ModulesHandler) GetSnapshot(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.liquidityClient.GetAllModulesSnapshot(c.Request.Context(), date)
+	resp, err := h.modulesService.GetSnapshot(c.Request.Context(), date)
 	if err != nil {
 		writeError(c, http.StatusBadGateway, "ML_SERVICE_UNAVAILABLE", "failed to call ML service")
 		return

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	pb "github.com/ru-liquidity-sentinel/backend/gen/go/liquidity/v1"
+	"github.com/ru-liquidity-sentinel/backend/internal/dto"
 )
 
 const (
@@ -14,7 +15,7 @@ const (
 	backtestTimeout = 45 * time.Second
 )
 
-func (c *LiquidityClient) GetCurrentLSI(ctx context.Context, includeShap, includeForecast, includeComment bool) (*DashboardResponse, error) {
+func (c *LiquidityClient) GetCurrentLSI(ctx context.Context, includeShap, includeForecast, includeComment bool) (*dto.DashboardResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
@@ -30,7 +31,7 @@ func (c *LiquidityClient) GetCurrentLSI(ctx context.Context, includeShap, includ
 	return mapLSIResponse(resp), nil
 }
 
-func (c *LiquidityClient) GetLSIHistory(ctx context.Context, from, to string, limit, offset int) (*LSIHistoryResponse, error) {
+func (c *LiquidityClient) GetLSIHistory(ctx context.Context, from, to string, limit, offset int) (*dto.LSIHistoryResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
@@ -51,7 +52,7 @@ func (c *LiquidityClient) GetLSIHistory(ctx context.Context, from, to string, li
 	return mapLSIHistoryResponse(resp), nil
 }
 
-func (c *LiquidityClient) RecalculateLSI(ctx context.Context, req RecalculateRequest) (*RecalculateResponse, error) {
+func (c *LiquidityClient) RecalculateLSI(ctx context.Context, req dto.RecalculateRequest) (*dto.RecalculateResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, longJobTimeout)
 	defer cancel()
 
@@ -68,7 +69,7 @@ func (c *LiquidityClient) RecalculateLSI(ctx context.Context, req RecalculateReq
 	return mapRecalculateResponse(resp), nil
 }
 
-func (c *LiquidityClient) GetModuleSignals(ctx context.Context, moduleID, from, to string) (*ModuleSignalsResponse, error) {
+func (c *LiquidityClient) GetModuleSignals(ctx context.Context, moduleID, from, to string) (*dto.ModuleSignalsResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
@@ -91,7 +92,7 @@ func (c *LiquidityClient) GetModuleSignals(ctx context.Context, moduleID, from, 
 	return mapModuleSignalsResponse(resp), nil
 }
 
-func (c *LiquidityClient) GetAllModulesSnapshot(ctx context.Context, date string) (*ModulesSnapshotResponse, error) {
+func (c *LiquidityClient) GetAllModulesSnapshot(ctx context.Context, date string) (*dto.ModulesSnapshotResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
@@ -105,7 +106,7 @@ func (c *LiquidityClient) GetAllModulesSnapshot(ctx context.Context, date string
 	return mapModulesSnapshotResponse(resp), nil
 }
 
-func (c *LiquidityClient) RunScenario(ctx context.Context, req ScenarioRequest) (*ScenarioResponse, error) {
+func (c *LiquidityClient) RunScenario(ctx context.Context, req dto.ScenarioRequest) (*dto.ScenarioResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
@@ -136,7 +137,7 @@ func (c *LiquidityClient) RunScenario(ctx context.Context, req ScenarioRequest) 
 	return mapScenarioResponse(resp), nil
 }
 
-func (c *LiquidityClient) GetBacktest(ctx context.Context, req BacktestRequest) (*BacktestResponse, error) {
+func (c *LiquidityClient) GetBacktest(ctx context.Context, req dto.BacktestRequest) (*dto.BacktestResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, backtestTimeout)
 	defer cancel()
 
@@ -165,7 +166,7 @@ func (c *LiquidityClient) GetBacktest(ctx context.Context, req BacktestRequest) 
 	return mapBacktestResponse(resp), nil
 }
 
-func (c *LiquidityClient) GenerateAutoComment(ctx context.Context, req GenerateAutoCommentRequest) (*AutoCommentResponse, error) {
+func (c *LiquidityClient) GenerateAutoComment(ctx context.Context, req dto.GenerateAutoCommentRequest) (*dto.AutoCommentResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
@@ -197,7 +198,7 @@ func (c *LiquidityClient) GenerateAutoComment(ctx context.Context, req GenerateA
 	return mapAutoCommentResponse(resp), nil
 }
 
-func (c *LiquidityClient) ChatAnalyst(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+func (c *LiquidityClient) ChatAnalyst(ctx context.Context, req dto.ChatRequest) (*dto.ChatResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 

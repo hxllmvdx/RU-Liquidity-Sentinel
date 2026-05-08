@@ -7,19 +7,27 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/ru-liquidity-sentinel/backend/internal/grpcclient"
 	"github.com/ru-liquidity-sentinel/backend/internal/http/handlers"
+	"github.com/ru-liquidity-sentinel/backend/internal/service"
 )
 
 func NewRouter(liquidityClient *grpcclient.LiquidityClient) *gin.Engine {
 	r := gin.Default()
 	r.Use(corsMiddleware())
 
+	dashboardService := service.NewDashboardService(liquidityClient)
+	lsiService := service.NewLSIService(liquidityClient)
+	scenarioService := service.NewScenarioService(liquidityClient)
+	backtestService := service.NewBacktestService(liquidityClient)
+	modulesService := service.NewModulesService(liquidityClient)
+	analystService := service.NewAnalystService(liquidityClient)
+
 	healthHandler := handlers.NewHealthHandler()
-	dashboardHandler := handlers.NewDashboardHandler(liquidityClient)
-	lsiHandler := handlers.NewLSIHandler(liquidityClient)
-	modulesHandler := handlers.NewModulesHandler(liquidityClient)
-	scenarioHandler := handlers.NewScenarioHandler(liquidityClient)
-	backtestHandler := handlers.NewBacktestHandler(liquidityClient)
-	analystHandler := handlers.NewAnalystHandler(liquidityClient)
+	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
+	lsiHandler := handlers.NewLSIHandler(lsiService)
+	modulesHandler := handlers.NewModulesHandler(modulesService)
+	scenarioHandler := handlers.NewScenarioHandler(scenarioService)
+	backtestHandler := handlers.NewBacktestHandler(backtestService)
+	analystHandler := handlers.NewAnalystHandler(analystService)
 
 	api := r.Group("/api")
 	api.GET("/health", healthHandler.Health)

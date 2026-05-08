@@ -7,19 +7,20 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ru-liquidity-sentinel/backend/internal/grpcclient"
+	"github.com/ru-liquidity-sentinel/backend/internal/dto"
+	"github.com/ru-liquidity-sentinel/backend/internal/service"
 )
 
 type AnalystHandler struct {
-	liquidityClient *grpcclient.LiquidityClient
+	analystService *service.AnalystService
 }
 
-func NewAnalystHandler(liquidityClient *grpcclient.LiquidityClient) *AnalystHandler {
-	return &AnalystHandler{liquidityClient: liquidityClient}
+func NewAnalystHandler(analystService *service.AnalystService) *AnalystHandler {
+	return &AnalystHandler{analystService: analystService}
 }
 
 func (h *AnalystHandler) GenerateComment(c *gin.Context) {
-	var req grpcclient.GenerateAutoCommentRequest
+	var req dto.GenerateAutoCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 		return
@@ -37,7 +38,7 @@ func (h *AnalystHandler) GenerateComment(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.liquidityClient.GenerateAutoComment(c.Request.Context(), req)
+	resp, err := h.analystService.GenerateComment(c.Request.Context(), req)
 	if err != nil {
 		writeError(c, http.StatusBadGateway, "ML_SERVICE_UNAVAILABLE", "failed to call ML service")
 		return
@@ -47,7 +48,7 @@ func (h *AnalystHandler) GenerateComment(c *gin.Context) {
 }
 
 func (h *AnalystHandler) Chat(c *gin.Context) {
-	var req grpcclient.ChatRequest
+	var req dto.ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 		return
@@ -64,7 +65,7 @@ func (h *AnalystHandler) Chat(c *gin.Context) {
 		req.SessionID = newSessionID()
 	}
 
-	resp, err := h.liquidityClient.ChatAnalyst(c.Request.Context(), req)
+	resp, err := h.analystService.Chat(c.Request.Context(), req)
 	if err != nil {
 		writeError(c, http.StatusBadGateway, "ML_SERVICE_UNAVAILABLE", "failed to call ML service")
 		return

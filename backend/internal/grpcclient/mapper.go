@@ -2,6 +2,7 @@ package grpcclient
 
 import (
 	pb "github.com/ru-liquidity-sentinel/backend/gen/go/liquidity/v1"
+	"github.com/ru-liquidity-sentinel/backend/internal/dto"
 )
 
 func mapStatus(status pb.Status) string {
@@ -94,12 +95,12 @@ func parseEpisode(value string) (pb.StressEpisode, bool) {
 	}
 }
 
-func mapLSIResponse(resp *pb.LSIResponse) *DashboardResponse {
+func mapLSIResponse(resp *pb.LSIResponse) *dto.DashboardResponse {
 	if resp == nil {
-		return &DashboardResponse{}
+		return &dto.DashboardResponse{}
 	}
 
-	return &DashboardResponse{
+	return &dto.DashboardResponse{
 		Date:          resp.GetDate(),
 		LSI:           resp.GetLsi(),
 		Status:        mapStatus(resp.GetStatus()),
@@ -112,10 +113,10 @@ func mapLSIResponse(resp *pb.LSIResponse) *DashboardResponse {
 	}
 }
 
-func mapContributions(items []*pb.ModuleContribution) []ModuleContribution {
-	result := make([]ModuleContribution, 0, len(items))
+func mapContributions(items []*pb.ModuleContribution) []dto.ModuleContribution {
+	result := make([]dto.ModuleContribution, 0, len(items))
 	for _, item := range items {
-		result = append(result, ModuleContribution{
+		result = append(result, dto.ModuleContribution{
 			ModuleID:            mapModuleID(item.GetModuleId()),
 			ModuleName:          item.GetModuleName(),
 			ContributionValue:   item.GetContributionValue(),
@@ -125,10 +126,10 @@ func mapContributions(items []*pb.ModuleContribution) []ModuleContribution {
 	return result
 }
 
-func mapShapValues(items []*pb.ShapValue) []ShapValue {
-	result := make([]ShapValue, 0, len(items))
+func mapShapValues(items []*pb.ShapValue) []dto.ShapValue {
+	result := make([]dto.ShapValue, 0, len(items))
 	for _, item := range items {
-		result = append(result, ShapValue{
+		result = append(result, dto.ShapValue{
 			FeatureName: item.GetFeatureName(),
 			ModuleID:    mapModuleID(item.GetModuleId()),
 			Value:       item.GetValue(),
@@ -138,10 +139,10 @@ func mapShapValues(items []*pb.ShapValue) []ShapValue {
 	return result
 }
 
-func mapActiveFlags(items []*pb.ActiveFlag) []ActiveFlag {
-	result := make([]ActiveFlag, 0, len(items))
+func mapActiveFlags(items []*pb.ActiveFlag) []dto.ActiveFlag {
+	result := make([]dto.ActiveFlag, 0, len(items))
 	for _, item := range items {
-		result = append(result, ActiveFlag{
+		result = append(result, dto.ActiveFlag{
 			FlagName:    item.GetFlagName(),
 			ModuleID:    mapModuleID(item.GetModuleId()),
 			Description: item.GetDescription(),
@@ -151,10 +152,10 @@ func mapActiveFlags(items []*pb.ActiveFlag) []ActiveFlag {
 	return result
 }
 
-func mapForecast(items []*pb.ForecastPoint) []ForecastPoint {
-	result := make([]ForecastPoint, 0, len(items))
+func mapForecast(items []*pb.ForecastPoint) []dto.ForecastPoint {
+	result := make([]dto.ForecastPoint, 0, len(items))
 	for _, item := range items {
-		result = append(result, ForecastPoint{
+		result = append(result, dto.ForecastPoint{
 			Horizon:    item.GetHorizon(),
 			TargetDate: item.GetTargetDate(),
 			LSI:        item.GetLsi(),
@@ -165,39 +166,39 @@ func mapForecast(items []*pb.ForecastPoint) []ForecastPoint {
 	return result
 }
 
-func mapLSIHistoryResponse(resp *pb.GetLSIHistoryResponse) *LSIHistoryResponse {
+func mapLSIHistoryResponse(resp *pb.GetLSIHistoryResponse) *dto.LSIHistoryResponse {
 	if resp == nil {
-		return &LSIHistoryResponse{}
+		return &dto.LSIHistoryResponse{}
 	}
-	points := make([]LSIHistoryPoint, 0, len(resp.GetPoints()))
+	points := make([]dto.LSIHistoryPoint, 0, len(resp.GetPoints()))
 	for _, point := range resp.GetPoints() {
-		points = append(points, LSIHistoryPoint{
+		points = append(points, dto.LSIHistoryPoint{
 			Date:       point.GetDate(),
 			LSI:        point.GetLsi(),
 			Status:     mapStatus(point.GetStatus()),
 			Confidence: point.GetConfidence(),
 		})
 	}
-	return &LSIHistoryResponse{Points: points}
+	return &dto.LSIHistoryResponse{Points: points}
 }
 
-func mapRecalculateResponse(resp *pb.RecalculateLSIResponse) *RecalculateResponse {
+func mapRecalculateResponse(resp *pb.RecalculateLSIResponse) *dto.RecalculateResponse {
 	if resp == nil {
-		return &RecalculateResponse{}
+		return &dto.RecalculateResponse{}
 	}
-	return &RecalculateResponse{
+	return &dto.RecalculateResponse{
 		Result:         mapLSIResponse(resp.GetResult()),
 		UpdatedSources: resp.GetUpdatedSources(),
 	}
 }
 
-func mapModuleSignalsResponse(resp *pb.GetModuleSignalsResponse) *ModuleSignalsResponse {
+func mapModuleSignalsResponse(resp *pb.GetModuleSignalsResponse) *dto.ModuleSignalsResponse {
 	if resp == nil {
-		return &ModuleSignalsResponse{}
+		return &dto.ModuleSignalsResponse{}
 	}
-	signals := make([]ModuleSignal, 0, len(resp.GetSignals()))
+	signals := make([]dto.ModuleSignal, 0, len(resp.GetSignals()))
 	for _, signal := range resp.GetSignals() {
-		signals = append(signals, ModuleSignal{
+		signals = append(signals, dto.ModuleSignal{
 			Date:       signal.GetDate(),
 			ModuleID:   mapModuleID(signal.GetModuleId()),
 			SignalName: signal.GetSignalName(),
@@ -207,22 +208,22 @@ func mapModuleSignalsResponse(resp *pb.GetModuleSignalsResponse) *ModuleSignalsR
 			Unit:       signal.GetUnit(),
 		})
 	}
-	return &ModuleSignalsResponse{
+	return &dto.ModuleSignalsResponse{
 		ModuleID:    mapModuleID(resp.GetModuleId()),
 		Signals:     signals,
 		ActiveFlags: mapActiveFlags(resp.GetActiveFlags()),
 	}
 }
 
-func mapModulesSnapshotResponse(resp *pb.GetAllModulesSnapshotResponse) *ModulesSnapshotResponse {
+func mapModulesSnapshotResponse(resp *pb.GetAllModulesSnapshotResponse) *dto.ModulesSnapshotResponse {
 	if resp == nil {
-		return &ModulesSnapshotResponse{}
+		return &dto.ModulesSnapshotResponse{}
 	}
-	modules := make([]ModuleSnapshot, 0, len(resp.GetModules()))
+	modules := make([]dto.ModuleSnapshot, 0, len(resp.GetModules()))
 	for _, module := range resp.GetModules() {
-		signals := make([]ModuleSignal, 0, len(module.GetSignals()))
+		signals := make([]dto.ModuleSignal, 0, len(module.GetSignals()))
 		for _, signal := range module.GetSignals() {
-			signals = append(signals, ModuleSignal{
+			signals = append(signals, dto.ModuleSignal{
 				Date:       signal.GetDate(),
 				ModuleID:   mapModuleID(signal.GetModuleId()),
 				SignalName: signal.GetSignalName(),
@@ -232,7 +233,7 @@ func mapModulesSnapshotResponse(resp *pb.GetAllModulesSnapshotResponse) *Modules
 				Unit:       signal.GetUnit(),
 			})
 		}
-		modules = append(modules, ModuleSnapshot{
+		modules = append(modules, dto.ModuleSnapshot{
 			ModuleID:    mapModuleID(module.GetModuleId()),
 			ModuleName:  module.GetModuleName(),
 			ModuleScore: module.GetModuleScore(),
@@ -240,17 +241,17 @@ func mapModulesSnapshotResponse(resp *pb.GetAllModulesSnapshotResponse) *Modules
 			ActiveFlags: mapActiveFlags(module.GetActiveFlags()),
 		})
 	}
-	return &ModulesSnapshotResponse{
+	return &dto.ModulesSnapshotResponse{
 		Date:    resp.GetDate(),
 		Modules: modules,
 	}
 }
 
-func mapScenarioResponse(resp *pb.ScenarioResponse) *ScenarioResponse {
+func mapScenarioResponse(resp *pb.ScenarioResponse) *dto.ScenarioResponse {
 	if resp == nil {
-		return &ScenarioResponse{}
+		return &dto.ScenarioResponse{}
 	}
-	return &ScenarioResponse{
+	return &dto.ScenarioResponse{
 		BaseDate:             resp.GetBaseDate(),
 		BaseLSI:              resp.GetBaseLsi(),
 		BaseStatus:           mapStatus(resp.GetBaseStatus()),
@@ -263,30 +264,30 @@ func mapScenarioResponse(resp *pb.ScenarioResponse) *ScenarioResponse {
 	}
 }
 
-func mapBacktestResponse(resp *pb.BacktestResponse) *BacktestResponse {
+func mapBacktestResponse(resp *pb.BacktestResponse) *dto.BacktestResponse {
 	if resp == nil {
-		return &BacktestResponse{}
+		return &dto.BacktestResponse{}
 	}
-	history := make([]LSIHistoryPoint, 0, len(resp.GetLsiHistory()))
+	history := make([]dto.LSIHistoryPoint, 0, len(resp.GetLsiHistory()))
 	for _, point := range resp.GetLsiHistory() {
-		history = append(history, LSIHistoryPoint{
+		history = append(history, dto.LSIHistoryPoint{
 			Date:       point.GetDate(),
 			LSI:        point.GetLsi(),
 			Status:     mapStatus(point.GetStatus()),
 			Confidence: point.GetConfidence(),
 		})
 	}
-	metrics := make([]BacktestMetric, 0, len(resp.GetMetrics()))
+	metrics := make([]dto.BacktestMetric, 0, len(resp.GetMetrics()))
 	for _, metric := range resp.GetMetrics() {
-		metrics = append(metrics, BacktestMetric{
+		metrics = append(metrics, dto.BacktestMetric{
 			Name:  metric.GetName(),
 			Value: metric.GetValue(),
 			Unit:  metric.GetUnit(),
 		})
 	}
-	events := make([]BacktestEvent, 0, len(resp.GetEvents()))
+	events := make([]dto.BacktestEvent, 0, len(resp.GetEvents()))
 	for _, event := range resp.GetEvents() {
-		events = append(events, BacktestEvent{
+		events = append(events, dto.BacktestEvent{
 			Date:        event.GetDate(),
 			Title:       event.GetTitle(),
 			Description: event.GetDescription(),
@@ -294,7 +295,7 @@ func mapBacktestResponse(resp *pb.BacktestResponse) *BacktestResponse {
 			Status:      mapStatus(event.GetStatus()),
 		})
 	}
-	result := &BacktestResponse{
+	result := &dto.BacktestResponse{
 		Episode:              mapEpisode(resp.GetEpisode()),
 		LSIHistory:           history,
 		Metrics:              metrics,
@@ -303,7 +304,7 @@ func mapBacktestResponse(resp *pb.BacktestResponse) *BacktestResponse {
 		Conclusion:           resp.GetConclusion(),
 	}
 	if resp.GetRange() != nil {
-		result.Range = DateRange{
+		result.Range = dto.DateRange{
 			From: resp.GetRange().GetFrom(),
 			To:   resp.GetRange().GetTo(),
 		}
@@ -311,31 +312,31 @@ func mapBacktestResponse(resp *pb.BacktestResponse) *BacktestResponse {
 	return result
 }
 
-func mapAutoCommentResponse(resp *pb.AutoCommentResponse) *AutoCommentResponse {
+func mapAutoCommentResponse(resp *pb.AutoCommentResponse) *dto.AutoCommentResponse {
 	if resp == nil {
-		return &AutoCommentResponse{}
+		return &dto.AutoCommentResponse{}
 	}
-	return &AutoCommentResponse{
+	return &dto.AutoCommentResponse{
 		Comment:       resp.GetComment(),
 		Retrospective: resp.GetRetrospective(),
 		Outlook:       resp.GetOutlook(),
 	}
 }
 
-func mapChatResponse(resp *pb.ChatResponse) *ChatResponse {
+func mapChatResponse(resp *pb.ChatResponse) *dto.ChatResponse {
 	if resp == nil {
-		return &ChatResponse{}
+		return &dto.ChatResponse{}
 	}
-	contexts := make([]ChatContext, 0, len(resp.GetContexts()))
+	contexts := make([]dto.ChatContext, 0, len(resp.GetContexts()))
 	for _, item := range resp.GetContexts() {
-		contexts = append(contexts, ChatContext{
+		contexts = append(contexts, dto.ChatContext{
 			SourceType: item.GetSourceType(),
 			Title:      item.GetTitle(),
 			Content:    item.GetContent(),
 			Relevance:  item.GetRelevance(),
 		})
 	}
-	return &ChatResponse{
+	return &dto.ChatResponse{
 		SessionID: resp.GetSessionId(),
 		Answer:    resp.GetAnswer(),
 		Contexts:  contexts,

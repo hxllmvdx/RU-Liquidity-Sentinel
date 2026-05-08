@@ -4,15 +4,16 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ru-liquidity-sentinel/backend/internal/grpcclient"
+	"github.com/ru-liquidity-sentinel/backend/internal/dto"
+	"github.com/ru-liquidity-sentinel/backend/internal/service"
 )
 
 type LSIHandler struct {
-	liquidityClient *grpcclient.LiquidityClient
+	lsiService *service.LSIService
 }
 
-func NewLSIHandler(liquidityClient *grpcclient.LiquidityClient) *LSIHandler {
-	return &LSIHandler{liquidityClient: liquidityClient}
+func NewLSIHandler(lsiService *service.LSIService) *LSIHandler {
+	return &LSIHandler{lsiService: lsiService}
 }
 
 func (h *LSIHandler) GetHistory(c *gin.Context) {
@@ -40,7 +41,7 @@ func (h *LSIHandler) GetHistory(c *gin.Context) {
 		return
 	}
 
-	resp, grpcErr := h.liquidityClient.GetLSIHistory(c.Request.Context(), from, to, limit, offset)
+	resp, grpcErr := h.lsiService.GetHistory(c.Request.Context(), from, to, limit, offset)
 	if grpcErr != nil {
 		writeError(c, http.StatusBadGateway, "ML_SERVICE_UNAVAILABLE", "failed to call ML service")
 		return
@@ -50,7 +51,7 @@ func (h *LSIHandler) GetHistory(c *gin.Context) {
 }
 
 func (h *LSIHandler) Recalculate(c *gin.Context) {
-	var req grpcclient.RecalculateRequest
+	var req dto.RecalculateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 		return
@@ -60,7 +61,7 @@ func (h *LSIHandler) Recalculate(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.liquidityClient.RecalculateLSI(c.Request.Context(), req)
+	resp, err := h.lsiService.Recalculate(c.Request.Context(), req)
 	if err != nil {
 		writeError(c, http.StatusBadGateway, "ML_SERVICE_UNAVAILABLE", "failed to call ML service")
 		return
