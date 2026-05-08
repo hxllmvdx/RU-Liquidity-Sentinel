@@ -2,95 +2,23 @@ syntax = "proto3";
 
 package liquidity.v1;
 
-option go_package = "github.com/ru-liquidity-sentinel/backend/gen/go/liquidity/v1;liquidityv1";
+import "liquidity/v1/analyst.proto";
+import "liquidity/v1/backtest.proto";
+import "liquidity/v1/lsi.proto";
+import "liquidity/v1/modules.proto";
+import "liquidity/v1/scenario.proto";
+
+option go_package = "github.com/your-org/ru-liquidity-sentinel/backend/gen/go/liquidity/v1;liquidityv1";
 
 service LiquidityService {
-  rpc GetCurrentLSI(CurrentLSIRequest) returns (CurrentLSIResponse);
-  rpc GetLSIHistory(LSIHistoryRequest) returns (LSIHistoryResponse);
-  rpc GetModuleSignals(ModuleSignalsRequest) returns (ModuleSignalsResponse);
-  rpc RunScenario(ScenarioRequest) returns (ScenarioResponse);
-  rpc GetBacktest(BacktestRequest) returns (BacktestResponse);
-  rpc ChatAnalyst(ChatAnalystRequest) returns (ChatAnalystResponse);
-}
+  rpc GetCurrentLSI(GetCurrentLSIRequest) returns (LSIResponse);
+  rpc GetLSIHistory(GetLSIHistoryRequest) returns (GetLSIHistoryResponse);
 
-message CurrentLSIRequest {}
-
-message CurrentLSIResponse {
-  double lsi = 1;
-  string status = 2;
-  string as_of_date = 3;
-}
-
-message LSIHistoryRequest {
-  string from_date = 1;
-  string to_date = 2;
-}
-
-message LSIHistoryPoint {
-  string date = 1;
-  double lsi = 2;
-  string status = 3;
-}
-
-message LSIHistoryResponse {
-  repeated LSIHistoryPoint points = 1;
-}
-
-message ModuleSignalsRequest {
-  string as_of_date = 1;
-}
-
-message ModuleSignal {
-  string module_id = 1;
-  string module_name = 2;
-  double raw_value = 3;
-  double normalized_value = 4;
-  double contribution = 5;
-  string status = 6;
-}
-
-message ModuleSignalsResponse {
-  repeated ModuleSignal signals = 1;
-}
-
-message ScenarioShock {
-  string module_id = 1;
-  double delta = 2;
-}
-
-message ScenarioRequest {
-  repeated ScenarioShock shocks = 1;
-  int32 horizon_days = 2;
-}
-
-message ScenarioResponse {
-  double scenario_lsi = 1;
-  string scenario_status = 2;
-  repeated ModuleSignal module_impacts = 3;
-}
-
-message BacktestRequest {
-  string stress_label = 1;
-}
-
-message BacktestResult {
-  string period_name = 1;
-  string start_date = 2;
-  string end_date = 3;
-  double peak_lsi = 4;
-  double hit_rate = 5;
-}
-
-message BacktestResponse {
-  repeated BacktestResult results = 1;
-}
-
-message ChatAnalystRequest {
-  string session_id = 1;
-  string question = 2;
-}
-
-message ChatAnalystResponse {
-  string answer = 1;
-  repeated string citations = 2;
+  rpc RecalculateLSI(RecalculateLSIRequest) returns (RecalculateLSIResponse);
+  rpc GetModuleSignals(GetModuleSignalsRequest) returns (GetModuleSignalsResponse);
+  rpc GetAllModulesSnapshot(GetAllModulesSnapshotRequest) returns (GetAllModulesSnapshotResponse);
+  rpc RunScenario(RunScenarioRequest) returns (ScenarioResponse);
+  rpc GetBacktest(GetBacktestRequest) returns (BacktestResponse);
+  rpc GenerateAutoComment(GenerateAutoCommentRequest) returns (AutoCommentResponse);
+  rpc ChatAnalyst(ChatRequest) returns (ChatResponse);
 }
