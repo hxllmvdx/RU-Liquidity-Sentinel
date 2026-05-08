@@ -1,5 +1,5 @@
-import { ScenarioSimulator } from "@/components/scenario/ScenarioSimulator";
+import { ScenarioScreen } from "@/screens/ScenarioScreen";
 
 export default function ScenarioPage() {
-  return <ScenarioSimulator />;
+  return <ScenarioScreen />;
 }

@@ -1,5 +1,5 @@
-import { BacktestTimeline } from "@/components/backtest/BacktestTimeline";
+import { BacktestScreen } from "@/screens/BacktestScreen";
 
 export default function BacktestPage() {
-  return <BacktestTimeline />;
+  return <BacktestScreen />;
 }
