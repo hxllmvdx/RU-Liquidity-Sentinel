@@ -1,11 +1,11 @@
-package grpcclient
+package mapper
 
 import (
 	pb "github.com/ru-liquidity-sentinel/backend/gen/go/liquidity/v1"
 	"github.com/ru-liquidity-sentinel/backend/internal/dto"
 )
 
-func mapStatus(status pb.Status) string {
+func StatusFromProto(status pb.Status) string {
 	switch status {
 	case pb.Status_STATUS_GREEN:
 		return "green"
@@ -18,7 +18,7 @@ func mapStatus(status pb.Status) string {
 	}
 }
 
-func parseStatus(value string) (pb.Status, bool) {
+func ParseStatusToProto(value string) (pb.Status, bool) {
 	switch value {
 	case "green":
 		return pb.Status_STATUS_GREEN, true
@@ -31,7 +31,7 @@ func parseStatus(value string) (pb.Status, bool) {
 	}
 }
 
-func mapModuleID(moduleID pb.ModuleId) string {
+func ModuleIDFromProto(moduleID pb.ModuleId) string {
 	switch moduleID {
 	case pb.ModuleId_MODULE_ID_M1_RESERVES:
 		return "M1_RESERVES"
@@ -48,7 +48,7 @@ func mapModuleID(moduleID pb.ModuleId) string {
 	}
 }
 
-func parseModuleID(value string) (pb.ModuleId, bool) {
+func ParseModuleIDToProto(value string) (pb.ModuleId, bool) {
 	switch value {
 	case "M1_RESERVES":
 		return pb.ModuleId_MODULE_ID_M1_RESERVES, true
@@ -65,7 +65,7 @@ func parseModuleID(value string) (pb.ModuleId, bool) {
 	}
 }
 
-func mapEpisode(episode pb.StressEpisode) string {
+func EpisodeFromProto(episode pb.StressEpisode) string {
 	switch episode {
 	case pb.StressEpisode_STRESS_EPISODE_DECEMBER_2014:
 		return "december_2014"
@@ -80,7 +80,7 @@ func mapEpisode(episode pb.StressEpisode) string {
 	}
 }
 
-func parseEpisode(value string) (pb.StressEpisode, bool) {
+func ParseEpisodeToProto(value string) (pb.StressEpisode, bool) {
 	switch value {
 	case "december_2014":
 		return pb.StressEpisode_STRESS_EPISODE_DECEMBER_2014, true
@@ -95,7 +95,7 @@ func parseEpisode(value string) (pb.StressEpisode, bool) {
 	}
 }
 
-func mapLSIResponse(resp *pb.LSIResponse) *dto.DashboardResponse {
+func DashboardResponseFromProto(resp *pb.LSIResponse) *dto.DashboardResponse {
 	if resp == nil {
 		return &dto.DashboardResponse{}
 	}
@@ -103,70 +103,17 @@ func mapLSIResponse(resp *pb.LSIResponse) *dto.DashboardResponse {
 	return &dto.DashboardResponse{
 		Date:          resp.GetDate(),
 		LSI:           resp.GetLsi(),
-		Status:        mapStatus(resp.GetStatus()),
+		Status:        StatusFromProto(resp.GetStatus()),
 		Confidence:    resp.GetConfidence(),
-		Contributions: mapContributions(resp.GetContributions()),
-		ShapValues:    mapShapValues(resp.GetShapValues()),
-		ActiveFlags:   mapActiveFlags(resp.GetActiveFlags()),
-		Forecast:      mapForecast(resp.GetForecast()),
+		Contributions: moduleContributionsFromProto(resp.GetContributions()),
+		ShapValues:    shapValuesFromProto(resp.GetShapValues()),
+		ActiveFlags:   activeFlagsFromProto(resp.GetActiveFlags()),
+		Forecast:      forecastPointsFromProto(resp.GetForecast()),
 		AutoComment:   resp.GetAutoComment(),
 	}
 }
 
-func mapContributions(items []*pb.ModuleContribution) []dto.ModuleContribution {
-	result := make([]dto.ModuleContribution, 0, len(items))
-	for _, item := range items {
-		result = append(result, dto.ModuleContribution{
-			ModuleID:            mapModuleID(item.GetModuleId()),
-			ModuleName:          item.GetModuleName(),
-			ContributionValue:   item.GetContributionValue(),
-			ContributionPercent: item.GetContributionPercent(),
-		})
-	}
-	return result
-}
-
-func mapShapValues(items []*pb.ShapValue) []dto.ShapValue {
-	result := make([]dto.ShapValue, 0, len(items))
-	for _, item := range items {
-		result = append(result, dto.ShapValue{
-			FeatureName: item.GetFeatureName(),
-			ModuleID:    mapModuleID(item.GetModuleId()),
-			Value:       item.GetValue(),
-			AbsValue:    item.GetAbsValue(),
-		})
-	}
-	return result
-}
-
-func mapActiveFlags(items []*pb.ActiveFlag) []dto.ActiveFlag {
-	result := make([]dto.ActiveFlag, 0, len(items))
-	for _, item := range items {
-		result = append(result, dto.ActiveFlag{
-			FlagName:    item.GetFlagName(),
-			ModuleID:    mapModuleID(item.GetModuleId()),
-			Description: item.GetDescription(),
-			Severity:    item.GetSeverity(),
-		})
-	}
-	return result
-}
-
-func mapForecast(items []*pb.ForecastPoint) []dto.ForecastPoint {
-	result := make([]dto.ForecastPoint, 0, len(items))
-	for _, item := range items {
-		result = append(result, dto.ForecastPoint{
-			Horizon:    item.GetHorizon(),
-			TargetDate: item.GetTargetDate(),
-			LSI:        item.GetLsi(),
-			Status:     mapStatus(item.GetStatus()),
-			Confidence: item.GetConfidence(),
-		})
-	}
-	return result
-}
-
-func mapLSIHistoryResponse(resp *pb.GetLSIHistoryResponse) *dto.LSIHistoryResponse {
+func LSIHistoryResponseFromProto(resp *pb.GetLSIHistoryResponse) *dto.LSIHistoryResponse {
 	if resp == nil {
 		return &dto.LSIHistoryResponse{}
 	}
@@ -175,24 +122,24 @@ func mapLSIHistoryResponse(resp *pb.GetLSIHistoryResponse) *dto.LSIHistoryRespon
 		points = append(points, dto.LSIHistoryPoint{
 			Date:       point.GetDate(),
 			LSI:        point.GetLsi(),
-			Status:     mapStatus(point.GetStatus()),
+			Status:     StatusFromProto(point.GetStatus()),
 			Confidence: point.GetConfidence(),
 		})
 	}
 	return &dto.LSIHistoryResponse{Points: points}
 }
 
-func mapRecalculateResponse(resp *pb.RecalculateLSIResponse) *dto.RecalculateResponse {
+func RecalculateResponseFromProto(resp *pb.RecalculateLSIResponse) *dto.RecalculateResponse {
 	if resp == nil {
 		return &dto.RecalculateResponse{}
 	}
 	return &dto.RecalculateResponse{
-		Result:         mapLSIResponse(resp.GetResult()),
+		Result:         DashboardResponseFromProto(resp.GetResult()),
 		UpdatedSources: resp.GetUpdatedSources(),
 	}
 }
 
-func mapModuleSignalsResponse(resp *pb.GetModuleSignalsResponse) *dto.ModuleSignalsResponse {
+func ModuleSignalsResponseFromProto(resp *pb.GetModuleSignalsResponse) *dto.ModuleSignalsResponse {
 	if resp == nil {
 		return &dto.ModuleSignalsResponse{}
 	}
@@ -200,7 +147,7 @@ func mapModuleSignalsResponse(resp *pb.GetModuleSignalsResponse) *dto.ModuleSign
 	for _, signal := range resp.GetSignals() {
 		signals = append(signals, dto.ModuleSignal{
 			Date:       signal.GetDate(),
-			ModuleID:   mapModuleID(signal.GetModuleId()),
+			ModuleID:   ModuleIDFromProto(signal.GetModuleId()),
 			SignalName: signal.GetSignalName(),
 			RawValue:   signal.GetRawValue(),
 			MadScore:   signal.GetMadScore(),
@@ -209,13 +156,13 @@ func mapModuleSignalsResponse(resp *pb.GetModuleSignalsResponse) *dto.ModuleSign
 		})
 	}
 	return &dto.ModuleSignalsResponse{
-		ModuleID:    mapModuleID(resp.GetModuleId()),
+		ModuleID:    ModuleIDFromProto(resp.GetModuleId()),
 		Signals:     signals,
-		ActiveFlags: mapActiveFlags(resp.GetActiveFlags()),
+		ActiveFlags: activeFlagsFromProto(resp.GetActiveFlags()),
 	}
 }
 
-func mapModulesSnapshotResponse(resp *pb.GetAllModulesSnapshotResponse) *dto.ModulesSnapshotResponse {
+func ModulesSnapshotResponseFromProto(resp *pb.GetAllModulesSnapshotResponse) *dto.ModulesSnapshotResponse {
 	if resp == nil {
 		return &dto.ModulesSnapshotResponse{}
 	}
@@ -225,7 +172,7 @@ func mapModulesSnapshotResponse(resp *pb.GetAllModulesSnapshotResponse) *dto.Mod
 		for _, signal := range module.GetSignals() {
 			signals = append(signals, dto.ModuleSignal{
 				Date:       signal.GetDate(),
-				ModuleID:   mapModuleID(signal.GetModuleId()),
+				ModuleID:   ModuleIDFromProto(signal.GetModuleId()),
 				SignalName: signal.GetSignalName(),
 				RawValue:   signal.GetRawValue(),
 				MadScore:   signal.GetMadScore(),
@@ -234,11 +181,11 @@ func mapModulesSnapshotResponse(resp *pb.GetAllModulesSnapshotResponse) *dto.Mod
 			})
 		}
 		modules = append(modules, dto.ModuleSnapshot{
-			ModuleID:    mapModuleID(module.GetModuleId()),
+			ModuleID:    ModuleIDFromProto(module.GetModuleId()),
 			ModuleName:  module.GetModuleName(),
 			ModuleScore: module.GetModuleScore(),
 			Signals:     signals,
-			ActiveFlags: mapActiveFlags(module.GetActiveFlags()),
+			ActiveFlags: activeFlagsFromProto(module.GetActiveFlags()),
 		})
 	}
 	return &dto.ModulesSnapshotResponse{
@@ -247,24 +194,24 @@ func mapModulesSnapshotResponse(resp *pb.GetAllModulesSnapshotResponse) *dto.Mod
 	}
 }
 
-func mapScenarioResponse(resp *pb.ScenarioResponse) *dto.ScenarioResponse {
+func ScenarioResponseFromProto(resp *pb.ScenarioResponse) *dto.ScenarioResponse {
 	if resp == nil {
 		return &dto.ScenarioResponse{}
 	}
 	return &dto.ScenarioResponse{
 		BaseDate:             resp.GetBaseDate(),
 		BaseLSI:              resp.GetBaseLsi(),
-		BaseStatus:           mapStatus(resp.GetBaseStatus()),
+		BaseStatus:           StatusFromProto(resp.GetBaseStatus()),
 		ScenarioLSI:          resp.GetScenarioLsi(),
-		ScenarioStatus:       mapStatus(resp.GetScenarioStatus()),
+		ScenarioStatus:       StatusFromProto(resp.GetScenarioStatus()),
 		DeltaLSI:             resp.GetDeltaLsi(),
-		ChangedContributions: mapContributions(resp.GetChangedContributions()),
-		ScenarioShapValues:   mapShapValues(resp.GetScenarioShapValues()),
+		ChangedContributions: moduleContributionsFromProto(resp.GetChangedContributions()),
+		ScenarioShapValues:   shapValuesFromProto(resp.GetScenarioShapValues()),
 		Explanation:          resp.GetExplanation(),
 	}
 }
 
-func mapBacktestResponse(resp *pb.BacktestResponse) *dto.BacktestResponse {
+func BacktestResponseFromProto(resp *pb.BacktestResponse) *dto.BacktestResponse {
 	if resp == nil {
 		return &dto.BacktestResponse{}
 	}
@@ -273,7 +220,7 @@ func mapBacktestResponse(resp *pb.BacktestResponse) *dto.BacktestResponse {
 		history = append(history, dto.LSIHistoryPoint{
 			Date:       point.GetDate(),
 			LSI:        point.GetLsi(),
-			Status:     mapStatus(point.GetStatus()),
+			Status:     StatusFromProto(point.GetStatus()),
 			Confidence: point.GetConfidence(),
 		})
 	}
@@ -292,15 +239,15 @@ func mapBacktestResponse(resp *pb.BacktestResponse) *dto.BacktestResponse {
 			Title:       event.GetTitle(),
 			Description: event.GetDescription(),
 			LSI:         event.GetLsi(),
-			Status:      mapStatus(event.GetStatus()),
+			Status:      StatusFromProto(event.GetStatus()),
 		})
 	}
 	result := &dto.BacktestResponse{
-		Episode:              mapEpisode(resp.GetEpisode()),
+		Episode:              EpisodeFromProto(resp.GetEpisode()),
 		LSIHistory:           history,
 		Metrics:              metrics,
 		Events:               events,
-		AverageContributions: mapContributions(resp.GetAverageContributions()),
+		AverageContributions: moduleContributionsFromProto(resp.GetAverageContributions()),
 		Conclusion:           resp.GetConclusion(),
 	}
 	if resp.GetRange() != nil {
@@ -312,7 +259,7 @@ func mapBacktestResponse(resp *pb.BacktestResponse) *dto.BacktestResponse {
 	return result
 }
 
-func mapAutoCommentResponse(resp *pb.AutoCommentResponse) *dto.AutoCommentResponse {
+func AutoCommentResponseFromProto(resp *pb.AutoCommentResponse) *dto.AutoCommentResponse {
 	if resp == nil {
 		return &dto.AutoCommentResponse{}
 	}
@@ -323,7 +270,7 @@ func mapAutoCommentResponse(resp *pb.AutoCommentResponse) *dto.AutoCommentRespon
 	}
 }
 
-func mapChatResponse(resp *pb.ChatResponse) *dto.ChatResponse {
+func ChatResponseFromProto(resp *pb.ChatResponse) *dto.ChatResponse {
 	if resp == nil {
 		return &dto.ChatResponse{}
 	}
@@ -341,4 +288,57 @@ func mapChatResponse(resp *pb.ChatResponse) *dto.ChatResponse {
 		Answer:    resp.GetAnswer(),
 		Contexts:  contexts,
 	}
+}
+
+func moduleContributionsFromProto(items []*pb.ModuleContribution) []dto.ModuleContribution {
+	result := make([]dto.ModuleContribution, 0, len(items))
+	for _, item := range items {
+		result = append(result, dto.ModuleContribution{
+			ModuleID:            ModuleIDFromProto(item.GetModuleId()),
+			ModuleName:          item.GetModuleName(),
+			ContributionValue:   item.GetContributionValue(),
+			ContributionPercent: item.GetContributionPercent(),
+		})
+	}
+	return result
+}
+
+func shapValuesFromProto(items []*pb.ShapValue) []dto.ShapValue {
+	result := make([]dto.ShapValue, 0, len(items))
+	for _, item := range items {
+		result = append(result, dto.ShapValue{
+			FeatureName: item.GetFeatureName(),
+			ModuleID:    ModuleIDFromProto(item.GetModuleId()),
+			Value:       item.GetValue(),
+			AbsValue:    item.GetAbsValue(),
+		})
+	}
+	return result
+}
+
+func activeFlagsFromProto(items []*pb.ActiveFlag) []dto.ActiveFlag {
+	result := make([]dto.ActiveFlag, 0, len(items))
+	for _, item := range items {
+		result = append(result, dto.ActiveFlag{
+			FlagName:    item.GetFlagName(),
+			ModuleID:    ModuleIDFromProto(item.GetModuleId()),
+			Description: item.GetDescription(),
+			Severity:    item.GetSeverity(),
+		})
+	}
+	return result
+}
+
+func forecastPointsFromProto(items []*pb.ForecastPoint) []dto.ForecastPoint {
+	result := make([]dto.ForecastPoint, 0, len(items))
+	for _, item := range items {
+		result = append(result, dto.ForecastPoint{
+			Horizon:    item.GetHorizon(),
+			TargetDate: item.GetTargetDate(),
+			LSI:        item.GetLsi(),
+			Status:     StatusFromProto(item.GetStatus()),
+			Confidence: item.GetConfidence(),
+		})
+	}
+	return result
 }

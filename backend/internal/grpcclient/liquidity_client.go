@@ -7,6 +7,7 @@ import (
 
 	pb "github.com/ru-liquidity-sentinel/backend/gen/go/liquidity/v1"
 	"github.com/ru-liquidity-sentinel/backend/internal/dto"
+	"github.com/ru-liquidity-sentinel/backend/internal/mapper"
 )
 
 const (
@@ -28,7 +29,7 @@ func (c *LiquidityClient) GetCurrentLSI(ctx context.Context, includeShap, includ
 		return nil, fmt.Errorf("grpc GetCurrentLSI failed: %w", err)
 	}
 
-	return mapLSIResponse(resp), nil
+	return mapper.DashboardResponseFromProto(resp), nil
 }
 
 func (c *LiquidityClient) GetLSIHistory(ctx context.Context, from, to string, limit, offset int) (*dto.LSIHistoryResponse, error) {
@@ -49,7 +50,7 @@ func (c *LiquidityClient) GetLSIHistory(ctx context.Context, from, to string, li
 		return nil, fmt.Errorf("grpc GetLSIHistory failed: %w", err)
 	}
 
-	return mapLSIHistoryResponse(resp), nil
+	return mapper.LSIHistoryResponseFromProto(resp), nil
 }
 
 func (c *LiquidityClient) RecalculateLSI(ctx context.Context, req dto.RecalculateRequest) (*dto.RecalculateResponse, error) {
@@ -66,14 +67,14 @@ func (c *LiquidityClient) RecalculateLSI(ctx context.Context, req dto.Recalculat
 		return nil, fmt.Errorf("grpc RecalculateLSI failed: %w", err)
 	}
 
-	return mapRecalculateResponse(resp), nil
+	return mapper.RecalculateResponseFromProto(resp), nil
 }
 
 func (c *LiquidityClient) GetModuleSignals(ctx context.Context, moduleID, from, to string) (*dto.ModuleSignalsResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
-	parsedModuleID, ok := parseModuleID(moduleID)
+	parsedModuleID, ok := mapper.ParseModuleIDToProto(moduleID)
 	if !ok {
 		return nil, fmt.Errorf("invalid module_id: %s", moduleID)
 	}
@@ -89,7 +90,7 @@ func (c *LiquidityClient) GetModuleSignals(ctx context.Context, moduleID, from, 
 		return nil, fmt.Errorf("grpc GetModuleSignals failed: %w", err)
 	}
 
-	return mapModuleSignalsResponse(resp), nil
+	return mapper.ModuleSignalsResponseFromProto(resp), nil
 }
 
 func (c *LiquidityClient) GetAllModulesSnapshot(ctx context.Context, date string) (*dto.ModulesSnapshotResponse, error) {
@@ -103,7 +104,7 @@ func (c *LiquidityClient) GetAllModulesSnapshot(ctx context.Context, date string
 		return nil, fmt.Errorf("grpc GetAllModulesSnapshot failed: %w", err)
 	}
 
-	return mapModulesSnapshotResponse(resp), nil
+	return mapper.ModulesSnapshotResponseFromProto(resp), nil
 }
 
 func (c *LiquidityClient) RunScenario(ctx context.Context, req dto.ScenarioRequest) (*dto.ScenarioResponse, error) {
@@ -112,7 +113,7 @@ func (c *LiquidityClient) RunScenario(ctx context.Context, req dto.ScenarioReque
 
 	shocks := make([]*pb.ScenarioShock, 0, len(req.Shocks))
 	for _, shock := range req.Shocks {
-		parsedModuleID, ok := parseModuleID(shock.ModuleID)
+		parsedModuleID, ok := mapper.ParseModuleIDToProto(shock.ModuleID)
 		if !ok {
 			return nil, fmt.Errorf("invalid module_id: %s", shock.ModuleID)
 		}
@@ -134,14 +135,14 @@ func (c *LiquidityClient) RunScenario(ctx context.Context, req dto.ScenarioReque
 		return nil, fmt.Errorf("grpc RunScenario failed: %w", err)
 	}
 
-	return mapScenarioResponse(resp), nil
+	return mapper.ScenarioResponseFromProto(resp), nil
 }
 
 func (c *LiquidityClient) GetBacktest(ctx context.Context, req dto.BacktestRequest) (*dto.BacktestResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, backtestTimeout)
 	defer cancel()
 
-	episode, ok := parseEpisode(req.Episode)
+	episode, ok := mapper.ParseEpisodeToProto(req.Episode)
 	if !ok {
 		return nil, fmt.Errorf("invalid episode: %s", req.Episode)
 	}
@@ -163,14 +164,14 @@ func (c *LiquidityClient) GetBacktest(ctx context.Context, req dto.BacktestReque
 		return nil, fmt.Errorf("grpc GetBacktest failed: %w", err)
 	}
 
-	return mapBacktestResponse(resp), nil
+	return mapper.BacktestResponseFromProto(resp), nil
 }
 
 func (c *LiquidityClient) GenerateAutoComment(ctx context.Context, req dto.GenerateAutoCommentRequest) (*dto.AutoCommentResponse, error) {
 	callCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
-	status, ok := parseStatus(req.Status)
+	status, ok := mapper.ParseStatusToProto(req.Status)
 	if !ok {
 		return nil, fmt.Errorf("invalid status: %s", req.Status)
 	}
@@ -195,7 +196,7 @@ func (c *LiquidityClient) GenerateAutoComment(ctx context.Context, req dto.Gener
 		return nil, fmt.Errorf("grpc GenerateAutoComment failed: %w", err)
 	}
 
-	return mapAutoCommentResponse(resp), nil
+	return mapper.AutoCommentResponseFromProto(resp), nil
 }
 
 func (c *LiquidityClient) ChatAnalyst(ctx context.Context, req dto.ChatRequest) (*dto.ChatResponse, error) {
@@ -218,5 +219,5 @@ func (c *LiquidityClient) ChatAnalyst(ctx context.Context, req dto.ChatRequest) 
 		return nil, fmt.Errorf("grpc ChatAnalyst failed: %w", err)
 	}
 
-	return mapChatResponse(resp), nil
+	return mapper.ChatResponseFromProto(resp), nil
 }
