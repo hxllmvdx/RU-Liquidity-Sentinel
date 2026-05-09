@@ -3,3 +3,7 @@ name = "ru-liquidity-sentinel-ml"
 version = "0.1.0"
 description = "ML and data services for RU Liquidity Sentinel"
 requires-python = ">=3.11"
+dependencies = [
+  "beautifulsoup4",
+  "requests",
+]

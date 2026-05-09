@@ -10,3 +10,5 @@ redis
 grpcio
 grpcio-tools
 pydantic
+beautifulsoup4
+requests

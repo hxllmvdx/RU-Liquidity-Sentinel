@@ -5,24 +5,24 @@ from datetime import date, datetime
 from typing import Any
 
 
-MODULE_SCHEMA = {"id": "m5", "name": "Federal Treasury Funds"}
-
-
 @dataclass(slots=True)
-class M5TreasuryFeatureRecord:
+class RoskaznaEksDepositRecord:
     source_code: str
     observation_date: date
-    federal_budget_and_extrabudgetary_funds_balances_bln_rub: float | None
-    eks_deposit_placement_volume_bln_rub: float | None
-    delta_week_bln_rub: float | None
-    delta_month_bln_rub: float | None
+    period_from: date | None
+    period_to: date | None
+    placement_volume_bln_rub: float | None
     participant_banks_count: int | None
-    ground_truth_liquidity_bln_rub: float | None
-    raw_refs: dict[str, Any]
+    auction_count: int | None
+    unit: str
+    source_file: str
+    raw: dict[str, Any]
     loaded_at: datetime
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["observation_date"] = self.observation_date.isoformat()
+        payload["period_from"] = self.period_from.isoformat() if self.period_from else None
+        payload["period_to"] = self.period_to.isoformat() if self.period_to else None
         payload["loaded_at"] = self.loaded_at.isoformat()
         return payload
