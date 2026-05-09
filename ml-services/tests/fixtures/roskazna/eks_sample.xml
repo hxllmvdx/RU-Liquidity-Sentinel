@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Depo>
+  <Depoauc1>
+    <aucdate>08.05.2026</aucdate>
+    <firstdate>08.05.2026</firstdate>
+    <seconddate>13.05.2026</seconddate>
+    <totalsettle>50000</totalsettle>
+    <crbidders>4</crbidders>
+  </Depoauc1>
+  <Depoauc2>
+    <aucdate>08.05.2026</aucdate>
+    <firstdate>08.05.2026</firstdate>
+    <seconddate>12.05.2026</seconddate>
+    <totalsettle>75952</totalsettle>
+    <crbidders>2</crbidders>
+  </Depoauc2>
+</Depo>

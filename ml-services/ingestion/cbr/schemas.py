@@ -57,3 +57,41 @@ class CbrRepoAuctionRecord:
         payload["second_leg_date"] = self.second_leg_date.isoformat() if self.second_leg_date else None
         payload["loaded_at"] = self.loaded_at.isoformat()
         return payload
+
+
+@dataclass(slots=True)
+class CbrSorsAttractedFundsRecord:
+    source_code: str
+    observation_date: date
+    indicator_name: str
+    value_bln_rub: float | None
+    unit: str
+    original_unit: str
+    source_file: str
+    sheet_name: str
+    raw_cell_refs: dict[str, Any]
+    raw: dict[str, Any]
+    loaded_at: datetime
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        payload["observation_date"] = self.observation_date.isoformat()
+        payload["loaded_at"] = self.loaded_at.isoformat()
+        return payload
+
+
+@dataclass(slots=True)
+class CbrBankingLiquidityRecord:
+    source_code: str
+    observation_date: date
+    indicator_name: str
+    value_bln_rub: float | None
+    unit: str
+    raw: dict[str, Any]
+    loaded_at: datetime
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        payload["observation_date"] = self.observation_date.isoformat()
+        payload["loaded_at"] = self.loaded_at.isoformat()
+        return payload
