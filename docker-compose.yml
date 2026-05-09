@@ -5,11 +5,39 @@ services:
             POSTGRES_DB: ${POSTGRES_DB}
             POSTGRES_USER: ${POSTGRES_USER}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+            start_period: 10s
         ports:
             - "${POSTGRES_PORT}:5432"
         volumes:
             - postgres_data:/var/lib/postgresql/data
-            - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+    db-migrations:
+        image: pgvector/pgvector:pg16
+        depends_on:
+            postgres:
+                condition: service_healthy
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB}
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        volumes:
+            - ./infra/postgres/init.sql:/migrations/init.sql:ro
+            - ./db/migrations:/migrations/files:ro
+        command:
+            [
+                "sh",
+                "-lc",
+                "psql postgresql://$$POSTGRES_USER:$$POSTGRES_PASSWORD@postgres:5432/$$POSTGRES_DB -v ON_ERROR_STOP=1 -f /migrations/init.sql"
+            ]
 
     redis:
         image: redis:7-alpine
@@ -33,9 +61,12 @@ services:
             ML_GRPC_ADDR: ml-services:50051
             BACKEND_HTTP_ADDR: :8080
         depends_on:
-            - postgres
-            - redis
-            - ml-services
+            db-migrations:
+                condition: service_completed_successfully
+            redis:
+                condition: service_started
+            ml-services:
+                condition: service_started
         ports:
             - "${BACKEND_PORT}:8080"
 
@@ -48,9 +79,12 @@ services:
         environment:
             ML_GRPC_PORT: 50051
         depends_on:
-            - postgres
-            - redis
-            - ollama
+            db-migrations:
+                condition: service_completed_successfully
+            redis:
+                condition: service_started
+            ollama:
+                condition: service_started
         ports:
             - "${ML_GRPC_PORT}:50051"
 

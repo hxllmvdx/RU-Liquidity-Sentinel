@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS backtest_results (
         CHECK (range_from <= range_to)
 );
 
+DROP TRIGGER IF EXISTS trg_backtest_results_set_updated_at ON backtest_results;
+
 CREATE TRIGGER trg_backtest_results_set_updated_at
 BEFORE UPDATE ON backtest_results
 FOR EACH ROW

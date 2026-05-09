@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
         CHECK (role IN ('user', 'assistant', 'system'))
 );
 
+DROP TRIGGER IF EXISTS trg_chat_sessions_set_updated_at ON chat_sessions;
+
 CREATE TRIGGER trg_chat_sessions_set_updated_at
 BEFORE UPDATE ON chat_sessions
 FOR EACH ROW

@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS rag_documents (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+DROP TRIGGER IF EXISTS trg_rag_documents_set_updated_at ON rag_documents;
+
 CREATE TRIGGER trg_rag_documents_set_updated_at
 BEFORE UPDATE ON rag_documents
 FOR EACH ROW

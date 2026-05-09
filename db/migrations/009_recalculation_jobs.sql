@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS recalculation_jobs (
         )
 );
 
+DROP TRIGGER IF EXISTS trg_recalculation_jobs_set_updated_at ON recalculation_jobs;
+
 CREATE TRIGGER trg_recalculation_jobs_set_updated_at
 BEFORE UPDATE ON recalculation_jobs
 FOR EACH ROW

@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS lsi_values (
         CHECK (status IN ('green', 'yellow', 'red', 'unspecified'))
 );
 
+DROP TRIGGER IF EXISTS trg_lsi_values_set_updated_at ON lsi_values;
+
 CREATE TRIGGER trg_lsi_values_set_updated_at
 BEFORE UPDATE ON lsi_values
 FOR EACH ROW
