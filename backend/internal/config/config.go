@@ -12,6 +12,7 @@ type Config struct {
 	MLGRPCAddr  string
 	DB_URL      string
 	Redis       RedisConfig
+	Scheduler   SchedulerConfig
 }
 
 type RedisConfig struct {
@@ -30,11 +31,20 @@ type RedisConfig struct {
 	HistoryTTL       time.Duration
 }
 
+type SchedulerConfig struct {
+	Enabled             bool
+	Cron                string
+	RunOnStartup        bool
+	Timezone            string
+	RecalculateDateMode string
+	Timeout             time.Duration
+}
+
 func Load() (Config, error) {
 	cfg := Config{
 		BackendPort: getEnv("BACKEND_PORT", "8080"),
 		MLGRPCAddr:  getEnv("ML_GRPC_ADDR", "ml-services:50051"),
-		DB_URL:      getEnv("DATABASE_URL", "postgres://ru_liquidity_user:password@localhost:5432/ru_liquidity_sentinel?sslmode=disable"),
+		DB_URL:      getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/ru_liquidity_sentinel?sslmode=disable"),
 	}
 
 	redisEnabled, err := getEnvBool("REDIS_ENABLED", false)
@@ -83,6 +93,18 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	schedulerEnabled, err := getEnvBool("SCHEDULER_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
+	schedulerRunOnStartup, err := getEnvBool("SCHEDULER_RUN_ON_STARTUP", false)
+	if err != nil {
+		return Config{}, err
+	}
+	schedulerTimeout, err := getEnvSeconds("SCHEDULER_TIMEOUT_SECONDS", 300)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg.Redis = RedisConfig{
 		Enabled:          redisEnabled,
@@ -98,6 +120,14 @@ func Load() (Config, error) {
 		BacktestTTL:      backtestTTL,
 		ModuleSignalsTTL: moduleSignalsTTL,
 		HistoryTTL:       historyTTL,
+	}
+	cfg.Scheduler = SchedulerConfig{
+		Enabled:             schedulerEnabled,
+		Cron:                getEnv("SCHEDULER_CRON", "0 */6 * * *"),
+		RunOnStartup:        schedulerRunOnStartup,
+		Timezone:            getEnv("SCHEDULER_TIMEZONE", "UTC"),
+		RecalculateDateMode: getEnv("SCHEDULER_RECALCULATE_DATE_MODE", "today"),
+		Timeout:             schedulerTimeout,
 	}
 	return cfg, nil
 }

@@ -161,19 +161,19 @@ func (r backtestResultRow) toDomain() domain.BacktestResult {
 }
 
 type recalculationJobRow struct {
-	ID                 uuid.UUID       `db:"id"`
-	RequestedDate      *time.Time      `db:"requested_date"`
-	Status             string          `db:"status"`
-	ForceReloadSources bool            `db:"force_reload_sources"`
-	RecalculateShap    bool            `db:"recalculate_shap"`
-	RegenerateComment  bool            `db:"regenerate_comment"`
-	StartedAt          *time.Time      `db:"started_at"`
-	FinishedAt         *time.Time      `db:"finished_at"`
-	ErrorMessage       *string         `db:"error_message"`
-	UpdatedSources     json.RawMessage `db:"updated_sources"`
-	ResultLSIValueID   *uuid.UUID      `db:"result_lsi_value_id"`
-	CreatedAt          time.Time       `db:"created_at"`
-	UpdatedAt          time.Time       `db:"updated_at"`
+	ID                 uuid.UUID  `db:"id"`
+	RequestedDate      *time.Time `db:"requested_date"`
+	Status             string     `db:"status"`
+	ForceReloadSources bool       `db:"force_reload_sources"`
+	RecalculateShap    bool       `db:"recalculate_shap"`
+	RegenerateComment  bool       `db:"regenerate_comment"`
+	StartedAt          *time.Time `db:"started_at"`
+	FinishedAt         *time.Time `db:"finished_at"`
+	ErrorMessage       *string    `db:"error_message"`
+	UpdatedSources     []byte     `db:"updated_sources"`
+	ResultLSIValueID   *uuid.UUID `db:"result_lsi_value_id"`
+	CreatedAt          time.Time  `db:"created_at"`
+	UpdatedAt          time.Time  `db:"updated_at"`
 }
 
 func (r recalculationJobRow) toDomain() domain.RecalculationJob {
@@ -187,7 +187,7 @@ func (r recalculationJobRow) toDomain() domain.RecalculationJob {
 		StartedAt:          r.StartedAt,
 		FinishedAt:         r.FinishedAt,
 		ErrorMessage:       r.ErrorMessage,
-		UpdatedSources:     r.UpdatedSources,
+		UpdatedSources:     json.RawMessage(r.UpdatedSources),
 		ResultLSIValueID:   r.ResultLSIValueID,
 		CreatedAt:          r.CreatedAt,
 		UpdatedAt:          r.UpdatedAt,

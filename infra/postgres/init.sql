@@ -13,3 +13,4 @@
 \ir files/009_analyst_chat.sql
 \ir files/010_rag_documents.sql
 \ir files/011_indexes.sql
+\ir files/012_drop_raw_observations.sql

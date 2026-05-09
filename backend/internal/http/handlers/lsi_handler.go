@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -64,6 +65,7 @@ func (h *LSIHandler) Recalculate(c *gin.Context) {
 
 	resp, err := h.lsiService.Recalculate(c.Request.Context(), req)
 	if err != nil {
+		log.Printf("recalculate request failed err=%v", err)
 		if errors.Is(err, service.ErrRecalculationInProgress) {
 			writeError(c, http.StatusConflict, "RECALCULATION_IN_PROGRESS", "recalculation already in progress")
 			return

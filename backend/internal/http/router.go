@@ -4,15 +4,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	rediscache "github.com/ru-liquidity-sentinel/backend/internal/cache/redis"
-	"github.com/ru-liquidity-sentinel/backend/internal/grpcclient"
 	"github.com/ru-liquidity-sentinel/backend/internal/http/handlers"
 	"github.com/ru-liquidity-sentinel/backend/internal/middleware"
-	"github.com/ru-liquidity-sentinel/backend/internal/repository/postgres"
 	"github.com/ru-liquidity-sentinel/backend/internal/service"
 )
 
-func NewRouter(liquidityClient *grpcclient.LiquidityClient, db *postgres.DB, cache *rediscache.Cache) *gin.Engine {
+func NewRouter(services *service.Services) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(
@@ -20,42 +17,18 @@ func NewRouter(liquidityClient *grpcclient.LiquidityClient, db *postgres.DB, cac
 		middleware.Logging(),
 		middleware.Recovery(),
 		middleware.CORS("http://localhost:3000"),
-		middleware.Timeout(5*time.Second),
+		middleware.TimeoutWithOverrides(5*time.Second, map[string]time.Duration{
+			"/api/recalculate": 65 * time.Second,
+		}),
 	)
-
-	var (
-		lsiRepo      *postgres.LSIRepository
-		modulesRepo  *postgres.ModulesRepository
-		contrRepo    *postgres.ContributionsRepository
-		backtestRepo *postgres.BacktestRepository
-		chatRepo     *postgres.ChatRepository
-		ragRepo      *postgres.RAGRepository
-		jobRepo      *postgres.JobRepository
-	)
-	if db != nil {
-		lsiRepo = postgres.NewLSIRepository(db)
-		modulesRepo = postgres.NewModulesRepository(db)
-		contrRepo = postgres.NewContributionsRepository(db)
-		backtestRepo = postgres.NewBacktestRepository(db)
-		chatRepo = postgres.NewChatRepository(db)
-		ragRepo = postgres.NewRAGRepository(db)
-		jobRepo = postgres.NewJobRepository(db)
-	}
-
-	dashboardService := service.NewDashboardService(liquidityClient, lsiRepo, contrRepo, modulesRepo, cache)
-	lsiService := service.NewLSIService(liquidityClient, lsiRepo, jobRepo, cache)
-	scenarioService := service.NewScenarioService(liquidityClient)
-	backtestService := service.NewBacktestService(liquidityClient, backtestRepo, cache)
-	modulesService := service.NewModulesService(liquidityClient, modulesRepo, cache)
-	analystService := service.NewAnalystService(liquidityClient, chatRepo, ragRepo)
 
 	healthHandler := handlers.NewHealthHandler()
-	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
-	lsiHandler := handlers.NewLSIHandler(lsiService)
-	modulesHandler := handlers.NewModulesHandler(modulesService)
-	scenarioHandler := handlers.NewScenarioHandler(scenarioService)
-	backtestHandler := handlers.NewBacktestHandler(backtestService)
-	analystHandler := handlers.NewAnalystHandler(analystService)
+	dashboardHandler := handlers.NewDashboardHandler(services.Dashboard)
+	lsiHandler := handlers.NewLSIHandler(services.LSI)
+	modulesHandler := handlers.NewModulesHandler(services.Modules)
+	scenarioHandler := handlers.NewScenarioHandler(services.Scenario)
+	backtestHandler := handlers.NewBacktestHandler(services.Backtest)
+	analystHandler := handlers.NewAnalystHandler(services.Analyst)
 
 	api := r.Group("/api")
 	api.GET("/health", healthHandler.Health)

@@ -41,3 +41,47 @@ TTL по умолчанию:
 - `ru-liquidity:lock:recalculation`
 
 Локально Redis можно поднять через `docker compose up redis` или полным стеком `docker compose up --build`.
+
+## Scheduler
+
+Scheduler встроен в backend и переиспользует тот же `LSIService`, что и `POST /api/recalculate`.
+Отдельный микросервис для scheduler не используется.
+
+Что делает scheduler:
+- по cron запускает recalculation flow;
+- использует тот же lock, job tracking, gRPC client, PostgreSQL persistence и Redis invalidation, что и manual recalculation;
+- при `REDIS_ENABLED=true` использует distributed lock `ru-liquidity:lock:recalculation`;
+- при `REDIS_ENABLED=false` остаётся локальная in-process защита от параллельного запуска только внутри одного backend процесса.
+
+Env:
+- `SCHEDULER_ENABLED=false`
+- `SCHEDULER_CRON=0 */6 * * *`
+- `SCHEDULER_RUN_ON_STARTUP=false`
+- `SCHEDULER_TIMEZONE=UTC`
+- `SCHEDULER_RECALCULATE_DATE_MODE=today`
+- `SCHEDULER_TIMEOUT_SECONDS=300`
+
+Как включить локально:
+
+```bash
+SCHEDULER_ENABLED=true \
+SCHEDULER_CRON="*/5 * * * *" \
+SCHEDULER_RUN_ON_STARTUP=true \
+go run ./cmd/api-gateway
+```
+
+Пояснения:
+- `SCHEDULER_RUN_ON_STARTUP=true` делает один немедленный запуск после старта backend.
+- `SCHEDULER_RECALCULATE_DATE_MODE` сейчас поддерживает `today` и `yesterday`.
+- при невалидном cron/timezone backend делает fail-fast только если scheduler включён.
+
+Проверка job status:
+- PostgreSQL остаётся source of truth;
+- смотрите `recalculation_jobs`;
+- Redis job keys используются только как runtime cache и не заменяют БД.
+
+Как отключить scheduler:
+
+```bash
+SCHEDULER_ENABLED=false
+```

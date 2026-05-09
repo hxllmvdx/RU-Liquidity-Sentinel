@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	rediscache "github.com/ru-liquidity-sentinel/backend/internal/cache/redis"
@@ -15,20 +17,23 @@ import (
 )
 
 type LSIService struct {
-	client  *grpcclient.LiquidityClient
-	lsiRepo *postgres.LSIRepository
-	jobRepo *postgres.JobRepository
-	cache   *rediscache.Cache
+	client     *grpcclient.LiquidityClient
+	lsiRepo    *postgres.LSIRepository
+	jobRepo    *postgres.JobRepository
+	sourceRepo *postgres.DataSourceRepository
+	cache      *rediscache.Cache
+	running    atomic.Bool
 }
 
 const dateLayout = "2006-01-02"
 
-func NewLSIService(client *grpcclient.LiquidityClient, lsiRepo *postgres.LSIRepository, jobRepo *postgres.JobRepository, cache *rediscache.Cache) *LSIService {
+func NewLSIService(client *grpcclient.LiquidityClient, lsiRepo *postgres.LSIRepository, jobRepo *postgres.JobRepository, sourceRepo *postgres.DataSourceRepository, cache *rediscache.Cache) *LSIService {
 	return &LSIService{
-		client:  client,
-		lsiRepo: lsiRepo,
-		jobRepo: jobRepo,
-		cache:   cache,
+		client:     client,
+		lsiRepo:    lsiRepo,
+		jobRepo:    jobRepo,
+		sourceRepo: sourceRepo,
+		cache:      cache,
 	}
 }
 
@@ -69,13 +74,14 @@ func (s *LSIService) GetHistory(ctx context.Context, from, to string, limit, off
 }
 
 func (s *LSIService) Recalculate(ctx context.Context, req dto.RecalculateRequest) (*dto.RecalculateResponse, error) {
-	lockToken, err := s.cache.AcquireRecalculationLock(ctx)
+	lockToken, releaseLocal, err := s.acquireRecalculationLock(ctx)
 	if err != nil {
-		if err == rediscache.ErrLockAlreadyHeld {
+		if err == rediscache.ErrLockAlreadyHeld || err == ErrRecalculationInProgress {
 			return nil, ErrRecalculationInProgress
 		}
 		return nil, err
 	}
+	defer releaseLocal()
 	if lockToken != "" {
 		defer func() {
 			if releaseErr := s.cache.ReleaseRecalculationLock(ctx, lockToken); releaseErr != nil {
@@ -95,7 +101,10 @@ func (s *LSIService) Recalculate(ctx context.Context, req dto.RecalculateRequest
 
 	var job *domain.RecalculationJob
 	if s.jobRepo != nil {
-		job, err = s.jobRepo.CreateJob(ctx, domain.RecalculationJob{
+		jobCtx, cancel := s.jobStatusContext(ctx)
+		defer cancel()
+
+		job, err = s.jobRepo.CreateJob(jobCtx, domain.RecalculationJob{
 			RequestedDate:      requestedDate,
 			Status:             "pending",
 			ForceReloadSources: req.ForceReloadSources,
@@ -108,7 +117,10 @@ func (s *LSIService) Recalculate(ctx context.Context, req dto.RecalculateRequest
 		if cacheErr := s.cache.SetJobStatus(ctx, *job); cacheErr != nil {
 			log.Printf("job cache set error: %v", cacheErr)
 		}
-		if err := s.jobRepo.MarkJobRunning(ctx, job.ID); err != nil {
+		if err := s.jobRepo.MarkJobRunning(jobCtx, job.ID); err != nil {
+			if failErr := s.jobRepo.MarkJobFailure(jobCtx, job.ID, err.Error()); failErr != nil {
+				log.Printf("mark job failure after running transition error: %v", failErr)
+			}
 			return nil, err
 		}
 		job.Status = "running"
@@ -120,7 +132,9 @@ func (s *LSIService) Recalculate(ctx context.Context, req dto.RecalculateRequest
 	result, err := s.client.RecalculateLSI(ctx, req)
 	if err != nil {
 		if job != nil {
-			if markErr := s.jobRepo.MarkJobFailure(ctx, job.ID, err.Error()); markErr != nil {
+			jobCtx, cancel := s.jobStatusContext(ctx)
+			defer cancel()
+			if markErr := s.jobRepo.MarkJobFailure(jobCtx, job.ID, err.Error()); markErr != nil {
 				log.Printf("mark job failure error: %v", markErr)
 			}
 		}
@@ -157,11 +171,18 @@ func (s *LSIService) Recalculate(ctx context.Context, req dto.RecalculateRequest
 
 	if err := s.lsiRepo.SaveLSIValue(ctx, value); err != nil {
 		if job != nil {
-			if markErr := s.jobRepo.MarkJobFailure(ctx, job.ID, err.Error()); markErr != nil {
+			jobCtx, cancel := s.jobStatusContext(ctx)
+			defer cancel()
+			if markErr := s.jobRepo.MarkJobFailure(jobCtx, job.ID, err.Error()); markErr != nil {
 				log.Printf("mark job failure error: %v", markErr)
 			}
 		}
 		return nil, err
+	}
+	log.Printf("recalculation persisted lsi calculation_date=%s", calculationDate.Format(dateLayout))
+
+	if err := s.markUpdatedSources(ctx, result.UpdatedSources); err != nil {
+		log.Printf("data sources update warning: %v", err)
 	}
 
 	latestLSI, err := s.lsiRepo.GetLatestLSI(ctx)
@@ -180,22 +201,78 @@ func (s *LSIService) Recalculate(ctx context.Context, req dto.RecalculateRequest
 	}
 
 	if job != nil {
+		jobCtx, cancel := s.jobStatusContext(ctx)
+		defer cancel()
+
 		if latestLSI != nil {
-			if err := s.jobRepo.MarkJobSuccess(ctx, job.ID, &latestLSI.ID, result.UpdatedSources); err != nil {
+			if err := s.jobRepo.MarkJobSuccess(jobCtx, job.ID, &latestLSI.ID, result.UpdatedSources); err != nil {
 				log.Printf("mark job success error: %v", err)
 			} else {
 				job.Status = "success"
 				job.ResultLSIValueID = &latestLSI.ID
-				if cacheErr := s.cache.SetJobStatus(ctx, *job); cacheErr != nil {
+				if cacheErr := s.cache.SetJobStatus(jobCtx, *job); cacheErr != nil {
 					log.Printf("job cache set error: %v", cacheErr)
 				}
 			}
-		} else if err := s.jobRepo.MarkJobSuccess(ctx, job.ID, nil, result.UpdatedSources); err != nil {
+		} else if err := s.jobRepo.MarkJobSuccess(jobCtx, job.ID, nil, result.UpdatedSources); err != nil {
 			log.Printf("mark job success error: %v", err)
 		}
 	}
 
 	return result, nil
+}
+
+func (s *LSIService) acquireRecalculationLock(ctx context.Context) (string, func(), error) {
+	if !s.running.CompareAndSwap(false, true) {
+		return "", func() {}, ErrRecalculationInProgress
+	}
+
+	releaseLocal := func() {
+		s.running.Store(false)
+	}
+
+	lockToken, err := s.cache.AcquireRecalculationLock(ctx)
+	if err != nil {
+		releaseLocal()
+		if err == rediscache.ErrLockAlreadyHeld {
+			return "", func() {}, ErrRecalculationInProgress
+		}
+		return "", func() {}, err
+	}
+
+	return lockToken, releaseLocal, nil
+}
+
+func (s *LSIService) markUpdatedSources(ctx context.Context, updatedSources []string) error {
+	if s.sourceRepo == nil || len(updatedSources) == 0 {
+		return nil
+	}
+
+	activeSources, err := s.sourceRepo.GetActiveSources(ctx)
+	if err != nil {
+		return err
+	}
+
+	activeByCode := make(map[string]struct{}, len(activeSources))
+	for _, source := range activeSources {
+		activeByCode[strings.ToUpper(source.SourceCode)] = struct{}{}
+	}
+
+	loadedAt := time.Now()
+	for _, sourceCode := range updatedSources {
+		if _, ok := activeByCode[strings.ToUpper(sourceCode)]; !ok {
+			continue
+		}
+		if err := s.sourceRepo.UpdateLoadSuccess(ctx, sourceCode, loadedAt); err != nil {
+			log.Printf("data source success update warning source=%s err=%v", sourceCode, err)
+		}
+	}
+
+	return nil
+}
+
+func (s *LSIService) jobStatusContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 }
 
 func (s *LSIService) invalidateAfterRecalculation(ctx context.Context) error {
