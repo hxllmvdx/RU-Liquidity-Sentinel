@@ -4,19 +4,20 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ru-liquidity-sentinel/backend/internal/grpcclient"
+	"github.com/ru-liquidity-sentinel/backend/internal/dto"
+	"github.com/ru-liquidity-sentinel/backend/internal/service"
 )
 
 type ScenarioHandler struct {
-	liquidityClient *grpcclient.LiquidityClient
+	scenarioService *service.ScenarioService
 }
 
-func NewScenarioHandler(liquidityClient *grpcclient.LiquidityClient) *ScenarioHandler {
-	return &ScenarioHandler{liquidityClient: liquidityClient}
+func NewScenarioHandler(scenarioService *service.ScenarioService) *ScenarioHandler {
+	return &ScenarioHandler{scenarioService: scenarioService}
 }
 
 func (h *ScenarioHandler) RunScenario(c *gin.Context) {
-	var req grpcclient.ScenarioRequest
+	var req dto.ScenarioRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeError(c, http.StatusBadRequest, "BAD_REQUEST", "invalid request body")
 		return
@@ -40,7 +41,7 @@ func (h *ScenarioHandler) RunScenario(c *gin.Context) {
 		}
 	}
 
-	resp, err := h.liquidityClient.RunScenario(c.Request.Context(), req)
+	resp, err := h.scenarioService.RunScenario(c.Request.Context(), req)
 	if err != nil {
 		writeError(c, http.StatusBadGateway, "ML_SERVICE_UNAVAILABLE", "failed to call ML service")
 		return

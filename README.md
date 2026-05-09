@@ -34,3 +34,12 @@ make backend
 make ml
 make frontend
 ```
+
+## Redis runtime cache
+
+Backend использует Redis как optional runtime/cache слой, а не как замену PostgreSQL.
+
+- При `REDIS_ENABLED=false` backend продолжает работать без Redis.
+- При `REDIS_ENABLED=true` backend делает `PING` Redis на старте и работает в fail-fast режиме, если Redis недоступен.
+
+По умолчанию в Redis кэшируются dashboard/current, latest LSI, modules snapshot, module signals, LSI history и backtest ответы. Distributed lock на recalculation тоже хранится в Redis.

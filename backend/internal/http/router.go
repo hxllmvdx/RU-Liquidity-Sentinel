@@ -1,25 +1,34 @@
 package http
 
 import (
-	nethttp "net/http"
-	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/ru-liquidity-sentinel/backend/internal/grpcclient"
 	"github.com/ru-liquidity-sentinel/backend/internal/http/handlers"
+	"github.com/ru-liquidity-sentinel/backend/internal/middleware"
+	"github.com/ru-liquidity-sentinel/backend/internal/service"
 )
 
-func NewRouter(liquidityClient *grpcclient.LiquidityClient) *gin.Engine {
+func NewRouter(services *service.Services) *gin.Engine {
 	r := gin.Default()
-	r.Use(corsMiddleware())
+
+	r.Use(
+		middleware.RequestID(),
+		middleware.Logging(),
+		middleware.Recovery(),
+		middleware.CORS("http://localhost:3000"),
+		middleware.TimeoutWithOverrides(5*time.Second, map[string]time.Duration{
+			"/api/recalculate": 65 * time.Second,
+		}),
+	)
 
 	healthHandler := handlers.NewHealthHandler()
-	dashboardHandler := handlers.NewDashboardHandler(liquidityClient)
-	lsiHandler := handlers.NewLSIHandler(liquidityClient)
-	modulesHandler := handlers.NewModulesHandler(liquidityClient)
-	scenarioHandler := handlers.NewScenarioHandler(liquidityClient)
-	backtestHandler := handlers.NewBacktestHandler(liquidityClient)
-	analystHandler := handlers.NewAnalystHandler(liquidityClient)
+	dashboardHandler := handlers.NewDashboardHandler(services.Dashboard)
+	lsiHandler := handlers.NewLSIHandler(services.LSI)
+	modulesHandler := handlers.NewModulesHandler(services.Modules)
+	scenarioHandler := handlers.NewScenarioHandler(services.Scenario)
+	backtestHandler := handlers.NewBacktestHandler(services.Backtest)
+	analystHandler := handlers.NewAnalystHandler(services.Analyst)
 
 	api := r.Group("/api")
 	api.GET("/health", healthHandler.Health)
@@ -35,35 +44,4 @@ func NewRouter(liquidityClient *grpcclient.LiquidityClient) *gin.Engine {
 	api.POST("/analyst/chat", analystHandler.Chat)
 
 	return r
-}
-
-func corsMiddleware() gin.HandlerFunc {
-	allowedOrigin := "http://localhost:3000"
-	allowedMethods := "GET, POST, OPTIONS"
-	allowedHeaders := "Content-Type, Authorization"
-
-	return func(c *gin.Context) {
-		origin := c.GetHeader("Origin")
-		if origin == allowedOrigin {
-			c.Header("Access-Control-Allow-Origin", allowedOrigin)
-			c.Header("Vary", "Origin")
-		}
-		c.Header("Access-Control-Allow-Methods", allowedMethods)
-		c.Header("Access-Control-Allow-Headers", allowedHeaders)
-
-		if c.Request.Method == nethttp.MethodOptions {
-			if origin != "" && origin != allowedOrigin {
-				c.AbortWithStatus(nethttp.StatusForbidden)
-				return
-			}
-			if !strings.Contains(allowedMethods, c.GetHeader("Access-Control-Request-Method")) && c.GetHeader("Access-Control-Request-Method") != "" {
-				c.AbortWithStatus(nethttp.StatusMethodNotAllowed)
-				return
-			}
-			c.AbortWithStatus(nethttp.StatusNoContent)
-			return
-		}
-
-		c.Next()
-	}
 }
