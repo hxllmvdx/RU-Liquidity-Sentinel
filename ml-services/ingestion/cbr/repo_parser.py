@@ -10,8 +10,9 @@ from bs4 import BeautifulSoup
 from ingestion.base_parser import BaseParser, ParserRunResult
 from ingestion.cbr.client import CbrClient
 from ingestion.cbr.exceptions import CbrEmptyResultError, CbrParserError
-from ingestion.cbr.io import write_jsonl_atomic
-from ingestion.cbr.schemas import CbrRepoAuctionRecord
+from ingestion.cbr.io import write_csv_atomic
+from ingestion.cbr.keyrate_parser import KeyRateParser
+from ingestion.cbr.schemas import CbrKeyRateRecord, CbrRepoAuctionRecord
 from ingestion.cbr.utils import (
     clean_text,
     parse_repo_caption_datetime,
@@ -31,6 +32,7 @@ class RepoParser(BaseParser):
 
     def __init__(self, client: CbrClient | None = None) -> None:
         self.client = client or CbrClient()
+        self.keyrate_parser = KeyRateParser(client=self.client)
 
     def fetch(self, date_from: date, date_to: date) -> list[CbrRepoAuctionRecord]:
         listing_html = self.client.get(self.path, date_from, date_to, extra_params={"UniDbQuery.P1": "0"})
@@ -38,10 +40,12 @@ class RepoParser(BaseParser):
         if not auction_dates:
             raise CbrEmptyResultError("repo listing contains no auction dates")
 
+        keyrate_records = self.keyrate_parser.fetch(date_from - timedelta(days=365), date_to)
+
         records: list[CbrRepoAuctionRecord] = []
         for auction_date in auction_dates:
             detail_html = self.client.get(self.path, auction_date, auction_date, extra_params={"UniDbQuery.P1": "0"})
-            record = self.parse_detail_html(detail_html)
+            record = self.parse_detail_html(detail_html, keyrate_records)
             if record is None:
                 LOGGER.warning("repo detail page produced no record for %s", auction_date.isoformat())
                 continue
@@ -73,7 +77,7 @@ class RepoParser(BaseParser):
                 dates.append(parsed_date)
         return dates
 
-    def parse_detail_html(self, html: str) -> CbrRepoAuctionRecord | None:
+    def parse_detail_html(self, html: str, keyrate_records: list[CbrKeyRateRecord] | None = None) -> CbrRepoAuctionRecord | None:
         soup = BeautifulSoup(html, "html.parser")
         caption = soup.select_one("div.table-caption.gray")
         detail_table = soup.select_one("table.data.without_header.levels")
@@ -96,15 +100,27 @@ class RepoParser(BaseParser):
         if not raw_pairs:
             return None
 
+        demand_volume_mln_rub = parse_russian_float(raw_pairs.get("Объем спроса на операции репо, млн руб."))
+        deal_volume_mln_rub = parse_russian_float(raw_pairs.get("Общий объем заключенных сделок репо, млн руб."))
+        cutoff_rate_percent = parse_russian_float(raw_pairs.get("Ставка отсечения, % годовых"))
+        weighted_average_rate_percent = parse_russian_float(raw_pairs.get("Средневзвешенная ставка, % годовых"))
+        key_rate_percent = self.lookup_key_rate(observation_date, keyrate_records or [])
+
         return CbrRepoAuctionRecord(
             source_code=self.source_code,
+            auction_date=observation_date,
             observation_date=observation_date,
             published_at=published_at,
             auction_type=raw_pairs.get("Тип аукциона"),
-            demand_volume_mln_rub=parse_russian_float(raw_pairs.get("Объем спроса на операции репо, млн руб.")),
-            deal_volume_mln_rub=parse_russian_float(raw_pairs.get("Общий объем заключенных сделок репо, млн руб.")),
-            cutoff_rate_percent=parse_russian_float(raw_pairs.get("Ставка отсечения, % годовых")),
-            weighted_average_rate_percent=parse_russian_float(raw_pairs.get("Средневзвешенная ставка, % годовых")),
+            key_rate_percent=key_rate_percent,
+            rate_spread_to_key_rate_percent=self.compute_spread(weighted_average_rate_percent, key_rate_percent),
+            demand_volume_mln_rub=demand_volume_mln_rub,
+            demand_volume_bln_rub=self.mln_to_bln(demand_volume_mln_rub),
+            deal_volume_mln_rub=deal_volume_mln_rub,
+            placement_volume_bln_rub=self.mln_to_bln(deal_volume_mln_rub),
+            cover_ratio=self.compute_cover_ratio(demand_volume_mln_rub, deal_volume_mln_rub),
+            cutoff_rate_percent=cutoff_rate_percent,
+            weighted_average_rate_percent=weighted_average_rate_percent,
             min_declared_rate_percent=parse_russian_float(raw_pairs.get("Минимальная заявленная ставка, % годовых")),
             max_declared_rate_percent=parse_russian_float(raw_pairs.get("Максимальная заявленная ставка, % годовых")),
             deal_volume_within_limit_mln_rub=parse_russian_float(
@@ -123,6 +139,32 @@ class RepoParser(BaseParser):
             loaded_at=self.utc_now(),
         )
 
+    @staticmethod
+    def mln_to_bln(value: float | None) -> float | None:
+        if value is None:
+            return None
+        return value / 1000.0
+
+    @staticmethod
+    def compute_cover_ratio(demand_volume_mln_rub: float | None, deal_volume_mln_rub: float | None) -> float | None:
+        if demand_volume_mln_rub is None or deal_volume_mln_rub in (None, 0):
+            return None
+        return demand_volume_mln_rub / deal_volume_mln_rub
+
+    @staticmethod
+    def compute_spread(weighted_average_rate_percent: float | None, key_rate_percent: float | None) -> float | None:
+        if weighted_average_rate_percent is None or key_rate_percent is None:
+            return None
+        return weighted_average_rate_percent - key_rate_percent
+
+    @staticmethod
+    def lookup_key_rate(observation_date: date, keyrate_records: list[CbrKeyRateRecord]) -> float | None:
+        applicable = [record for record in keyrate_records if record.observation_date <= observation_date]
+        if not applicable:
+            return None
+        applicable.sort(key=lambda record: record.observation_date)
+        return applicable[-1].rate_percent
+
     def save(
         self,
         records: list[CbrRepoAuctionRecord],
@@ -136,9 +178,9 @@ class RepoParser(BaseParser):
             base_dir
             / "cbr"
             / "repo"
-            / f"cbr_repo_{date_from.isoformat()}_{date_to.isoformat()}.jsonl"
+            / f"cbr_repo_{date_from.isoformat()}_{date_to.isoformat()}.csv"
         )
-        return write_jsonl_atomic(records, output_path, overwrite=overwrite)
+        return write_csv_atomic(records, output_path, overwrite=overwrite)
 
     def run(
         self,
@@ -159,11 +201,11 @@ class RepoParser(BaseParser):
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Fetch CBR repo auction data into data/raw JSONL")
+    parser = argparse.ArgumentParser(description="Fetch CBR repo auction data into data/raw CSV")
     parser.add_argument("--from", dest="date_from", help="Start date in YYYY-MM-DD")
     parser.add_argument("--to", dest="date_to", help="End date in YYYY-MM-DD")
     parser.add_argument("--out-dir", dest="out_dir", default=None, help="Output directory root, default is data/raw")
-    parser.add_argument("--format", dest="fmt", default="jsonl", choices=["jsonl"], help="Output format")
+    parser.add_argument("--format", dest="fmt", default="csv", choices=["csv"], help="Output format")
     parser.add_argument("--no-overwrite", action="store_true", help="Fail if output file already exists")
     return parser
 

@@ -1,10 +1,10 @@
 from datetime import date
 from pathlib import Path
-import json
 import tempfile
 import unittest
+import csv
 
-from ingestion.cbr.io import write_jsonl_atomic
+from ingestion.cbr.io import write_csv_atomic
 from ingestion.cbr.keyrate_parser import KeyRateParser
 from ingestion.cbr.utils import parse_russian_date, parse_russian_float
 
@@ -37,19 +37,20 @@ class KeyRateParserTest(unittest.TestCase):
         self.assertEqual(records[0].unit, "percent_per_annum")
         self.assertEqual(records[0].raw["rate"], "14,50")
 
-    def test_writer_creates_jsonl(self) -> None:
+    def test_writer_creates_csv(self) -> None:
         parser = KeyRateParser()
         html = (FIXTURES_DIR / "keyrate_sample.html").read_text(encoding="utf-8")
         records = parser.parse_html(html)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            output = write_jsonl_atomic(records, Path(tmp_dir) / "sample.jsonl")
-            lines = output.read_text(encoding="utf-8").splitlines()
+            output = write_csv_atomic(records, Path(tmp_dir) / "sample.csv")
+            with output.open(encoding="utf-8", newline="") as handle:
+                rows = list(csv.DictReader(handle))
 
-        self.assertEqual(len(lines), 2)
-        payload = json.loads(lines[0])
-        self.assertEqual(payload["source_code"], "CBR_KEYRATE")
-        self.assertEqual(payload["observation_date"], "2026-05-08")
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["source_code"], "CBR_KEYRATE")
+        self.assertEqual(rows[0]["observation_date"], "2026-05-08")
+        self.assertEqual(rows[0]["rate_percent"], "14.5")
 
 
 if __name__ == "__main__":

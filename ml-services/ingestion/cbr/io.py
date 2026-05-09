@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 import json
 import logging
@@ -16,7 +17,17 @@ class SupportsToDict(Protocol):
         ...
 
 
-def write_jsonl_atomic(
+def _flatten_for_csv(record: dict) -> dict[str, str | int | float | None]:
+    flattened: dict[str, str | int | float | None] = {}
+    for key, value in record.items():
+        if isinstance(value, (dict, list)):
+            flattened[key] = json.dumps(value, ensure_ascii=False)
+        else:
+            flattened[key] = value
+    return flattened
+
+
+def write_csv_atomic(
     records: Iterable[SupportsToDict],
     output_path: Path,
     overwrite: bool = True,
@@ -36,10 +47,18 @@ def write_jsonl_atomic(
     ) as handle:
         temp_path = Path(handle.name)
         try:
-            line_count = 0
-            for record in records:
-                handle.write(json.dumps(record.to_dict(), ensure_ascii=False) + "\n")
-                line_count += 1
+            normalized = [_flatten_for_csv(record.to_dict()) for record in records]
+            line_count = len(normalized)
+            fieldnames: list[str] = []
+            for item in normalized:
+                for key in item.keys():
+                    if key not in fieldnames:
+                        fieldnames.append(key)
+
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            for item in normalized:
+                writer.writerow(item)
             handle.flush()
             os.fsync(handle.fileno())
         except Exception:

@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from ingestion.base_parser import BaseParser, ParserRunResult
 from ingestion.cbr.client import CbrClient
 from ingestion.cbr.exceptions import CbrEmptyResultError, CbrParserError
-from ingestion.cbr.io import write_jsonl_atomic
+from ingestion.cbr.io import write_csv_atomic
 from ingestion.cbr.schemas import CbrKeyRateRecord
 from ingestion.cbr.utils import clean_text, parse_russian_date, parse_russian_float
 
@@ -80,9 +80,9 @@ class KeyRateParser(BaseParser):
             base_dir
             / "cbr"
             / "keyrate"
-            / f"cbr_keyrate_{date_from.isoformat()}_{date_to.isoformat()}.jsonl"
+            / f"cbr_keyrate_{date_from.isoformat()}_{date_to.isoformat()}.csv"
         )
-        return write_jsonl_atomic(records, output_path, overwrite=overwrite)
+        return write_csv_atomic(records, output_path, overwrite=overwrite)
 
     def run(
         self,
@@ -103,11 +103,11 @@ class KeyRateParser(BaseParser):
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Fetch CBR key rate data into data/raw JSONL")
+    parser = argparse.ArgumentParser(description="Fetch CBR key rate data into data/raw CSV")
     parser.add_argument("--from", dest="date_from", help="Start date in YYYY-MM-DD")
     parser.add_argument("--to", dest="date_to", help="End date in YYYY-MM-DD")
     parser.add_argument("--out-dir", dest="out_dir", default=None, help="Output directory root, default is data/raw")
-    parser.add_argument("--format", dest="fmt", default="jsonl", choices=["jsonl"], help="Output format")
+    parser.add_argument("--format", dest="fmt", default="csv", choices=["csv"], help="Output format")
     parser.add_argument("--no-overwrite", action="store_true", help="Fail if output file already exists")
     return parser
 

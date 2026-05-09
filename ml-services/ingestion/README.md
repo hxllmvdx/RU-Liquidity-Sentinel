@@ -23,5 +23,9 @@ python -m ingestion.cbr.repo_parser --from 2026-05-01 --to 2026-05-08 --out-dir 
 ```
 
 Формат output:
-- `../data/raw/cbr/keyrate/cbr_keyrate_YYYY-MM-DD_YYYY-MM-DD.jsonl`
-- `../data/raw/cbr/repo/cbr_repo_YYYY-MM-DD_YYYY-MM-DD.jsonl`
+- `../data/raw/cbr/keyrate/cbr_keyrate_YYYY-MM-DD_YYYY-MM-DD.csv`
+- `../data/raw/cbr/repo/cbr_repo_YYYY-MM-DD_YYYY-MM-DD.csv`
+
+Замечание по CSV:
+- scalar поля сохраняются отдельными колонками;
+- `raw` и `unit` сохраняются как JSON-serialized строки внутри CSV колонок.
