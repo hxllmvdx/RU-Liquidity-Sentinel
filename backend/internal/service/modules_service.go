@@ -2,9 +2,14 @@ package service
 
 import (
 	"context"
+	"log"
+	"time"
 
+	rediscache "github.com/ru-liquidity-sentinel/backend/internal/cache/redis"
 	"github.com/ru-liquidity-sentinel/backend/internal/dto"
 	"github.com/ru-liquidity-sentinel/backend/internal/grpcclient"
+	"github.com/ru-liquidity-sentinel/backend/internal/mapper"
+	"github.com/ru-liquidity-sentinel/backend/internal/repository/postgres"
 )
 
 var staticModules = []dto.ModuleDefinition{
@@ -37,11 +42,15 @@ var staticModules = []dto.ModuleDefinition{
 
 type ModulesService struct {
 	client *grpcclient.LiquidityClient
+	repo   *postgres.ModulesRepository
+	cache  *rediscache.Cache
 }
 
-func NewModulesService(client *grpcclient.LiquidityClient) *ModulesService {
+func NewModulesService(client *grpcclient.LiquidityClient, repo *postgres.ModulesRepository, cache *rediscache.Cache) *ModulesService {
 	return &ModulesService{
 		client: client,
+		repo:   repo,
+		cache:  cache,
 	}
 }
 
@@ -50,21 +59,62 @@ func (s *ModulesService) ListModules(ctx context.Context) (dto.ModulesListRespon
 }
 
 func (s *ModulesService) GetSignals(ctx context.Context, moduleID, from, to string) (*dto.ModuleSignalsResponse, error) {
-	resp, err := s.client.GetModuleSignals(ctx, moduleID, from, to)
+	if cached, err := s.cache.GetModuleSignals(ctx, moduleID, from, to); err == nil && cached != nil {
+		return cached, nil
+	}
+
+	fromTime, err := time.Parse(dateLayout, from)
 	if err != nil {
 		return nil, err
 	}
-	return &dto.ModuleSignalsResponse{
+	toTime, err := time.Parse(dateLayout, to)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.repo == nil {
+		resp, err := s.client.GetModuleSignals(ctx, moduleID, from, to)
+		if err != nil {
+			return nil, err
+		}
+		if cacheErr := s.cache.SetModuleSignals(ctx, moduleID, from, to, resp); cacheErr != nil {
+			log.Printf("module signals cache set error: %v", cacheErr)
+		}
+		return resp, err
+	}
+
+	sigs, err := s.repo.GetModuleSignals(ctx, moduleID, fromTime, toTime)
+	if err != nil {
+		return nil, err
+	}
+
+	flags, err := s.repo.GetActiveFlags(ctx, moduleID, fromTime, toTime)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &dto.ModuleSignalsResponse{
 		ModuleID:    moduleID,
-		Signals:     resp.Signals,
-		ActiveFlags: resp.ActiveFlags,
-	}, nil
+		Signals:     mapper.ModuleSignalsFromDomain(sigs),
+		ActiveFlags: mapper.ActiveFlagsFromDomain(flags),
+	}
+	if cacheErr := s.cache.SetModuleSignals(ctx, moduleID, from, to, resp); cacheErr != nil {
+		log.Printf("module signals cache set error: %v", cacheErr)
+	}
+	return resp, nil
 }
 
 func (s *ModulesService) GetSnapshot(ctx context.Context, date string) (*dto.ModulesSnapshotResponse, error) {
+	if cached, err := s.cache.GetModulesSnapshot(ctx, date); err == nil && cached != nil {
+		return cached, nil
+	}
+
 	resp, err := s.client.GetAllModulesSnapshot(ctx, date)
 	if err != nil {
 		return nil, err
+	}
+	if cacheErr := s.cache.SetModulesSnapshot(ctx, date, resp); cacheErr != nil {
+		log.Printf("modules snapshot cache set error: %v", cacheErr)
 	}
 	return resp, nil
 }

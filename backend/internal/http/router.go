@@ -5,21 +5,42 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	rediscache "github.com/ru-liquidity-sentinel/backend/internal/cache/redis"
 	"github.com/ru-liquidity-sentinel/backend/internal/grpcclient"
 	"github.com/ru-liquidity-sentinel/backend/internal/http/handlers"
+	"github.com/ru-liquidity-sentinel/backend/internal/repository/postgres"
 	"github.com/ru-liquidity-sentinel/backend/internal/service"
 )
 
-func NewRouter(liquidityClient *grpcclient.LiquidityClient) *gin.Engine {
+func NewRouter(liquidityClient *grpcclient.LiquidityClient, db *postgres.DB, cache *rediscache.Cache) *gin.Engine {
 	r := gin.Default()
 	r.Use(corsMiddleware())
 
-	dashboardService := service.NewDashboardService(liquidityClient)
-	lsiService := service.NewLSIService(liquidityClient)
+	var (
+		lsiRepo      *postgres.LSIRepository
+		modulesRepo  *postgres.ModulesRepository
+		contrRepo    *postgres.ContributionsRepository
+		backtestRepo *postgres.BacktestRepository
+		chatRepo     *postgres.ChatRepository
+		ragRepo      *postgres.RAGRepository
+		jobRepo      *postgres.JobRepository
+	)
+	if db != nil {
+		lsiRepo = postgres.NewLSIRepository(db)
+		modulesRepo = postgres.NewModulesRepository(db)
+		contrRepo = postgres.NewContributionsRepository(db)
+		backtestRepo = postgres.NewBacktestRepository(db)
+		chatRepo = postgres.NewChatRepository(db)
+		ragRepo = postgres.NewRAGRepository(db)
+		jobRepo = postgres.NewJobRepository(db)
+	}
+
+	dashboardService := service.NewDashboardService(liquidityClient, lsiRepo, contrRepo, modulesRepo, cache)
+	lsiService := service.NewLSIService(liquidityClient, lsiRepo, jobRepo, cache)
 	scenarioService := service.NewScenarioService(liquidityClient)
-	backtestService := service.NewBacktestService(liquidityClient)
-	modulesService := service.NewModulesService(liquidityClient)
-	analystService := service.NewAnalystService(liquidityClient)
+	backtestService := service.NewBacktestService(liquidityClient, backtestRepo, cache)
+	modulesService := service.NewModulesService(liquidityClient, modulesRepo, cache)
+	analystService := service.NewAnalystService(liquidityClient, chatRepo, ragRepo)
 
 	healthHandler := handlers.NewHealthHandler()
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService)

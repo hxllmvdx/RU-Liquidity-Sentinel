@@ -113,3 +113,24 @@ func (r *ModulesRepository) GetActiveFlags(ctx context.Context, moduleID string,
 	}
 	return results, nil
 }
+
+func (r *ModulesRepository) GetActiveFlagsForDate(ctx context.Context, from, to time.Time) ([]domain.ActiveFlag, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	const query = `SELECT id, flag_date, module_id, flag_name, description, severity, created_at
+	FROM active_flags
+	WHERE flag_date BETWEEN $1 AND $2
+	ORDER BY flag_date DESC, module_id ASC, flag_name ASC`
+
+	var rows []activeFlagRow
+	if err := r.db.conn.SelectContext(ctx, &rows, query, from, to); err != nil {
+		return nil, fmt.Errorf("get active flags for date: %w", err)
+	}
+
+	results := make([]domain.ActiveFlag, 0, len(rows))
+	for _, row := range rows {
+		results = append(results, row.toDomain())
+	}
+	return results, nil
+}

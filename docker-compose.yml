@@ -41,6 +41,12 @@ services:
 
     redis:
         image: redis:7-alpine
+        command: ["redis-server", "--appendonly", "no"]
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
         ports:
             - "${REDIS_PORT}:6379"
 
@@ -60,11 +66,24 @@ services:
         environment:
             ML_GRPC_ADDR: ml-services:50051
             BACKEND_HTTP_ADDR: :8080
+            REDIS_ENABLED: ${REDIS_ENABLED}
+            REDIS_ADDR: redis:6379
+            REDIS_PASSWORD: ${REDIS_PASSWORD}
+            REDIS_DB: ${REDIS_DB}
+            REDIS_DEFAULT_TTL_SECONDS: ${REDIS_DEFAULT_TTL_SECONDS}
+            REDIS_DASHBOARD_TTL_SECONDS: ${REDIS_DASHBOARD_TTL_SECONDS}
+            REDIS_LSI_TTL_SECONDS: ${REDIS_LSI_TTL_SECONDS}
+            REDIS_MODULES_TTL_SECONDS: ${REDIS_MODULES_TTL_SECONDS}
+            REDIS_MODULE_SIGNALS_TTL_SECONDS: ${REDIS_MODULE_SIGNALS_TTL_SECONDS}
+            REDIS_LSI_HISTORY_TTL_SECONDS: ${REDIS_LSI_HISTORY_TTL_SECONDS}
+            REDIS_JOB_TTL_SECONDS: ${REDIS_JOB_TTL_SECONDS}
+            REDIS_LOCK_TTL_SECONDS: ${REDIS_LOCK_TTL_SECONDS}
+            REDIS_BACKTEST_TTL_SECONDS: ${REDIS_BACKTEST_TTL_SECONDS}
         depends_on:
             db-migrations:
                 condition: service_completed_successfully
             redis:
-                condition: service_started
+                condition: service_healthy
             ml-services:
                 condition: service_started
         ports:

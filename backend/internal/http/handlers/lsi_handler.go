@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -63,6 +64,10 @@ func (h *LSIHandler) Recalculate(c *gin.Context) {
 
 	resp, err := h.lsiService.Recalculate(c.Request.Context(), req)
 	if err != nil {
+		if errors.Is(err, service.ErrRecalculationInProgress) {
+			writeError(c, http.StatusConflict, "RECALCULATION_IN_PROGRESS", "recalculation already in progress")
+			return
+		}
 		writeError(c, http.StatusBadGateway, "ML_SERVICE_UNAVAILABLE", "failed to call ML service")
 		return
 	}

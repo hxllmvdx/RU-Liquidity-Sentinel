@@ -41,7 +41,7 @@ func (r *RAGRepository) SearchDocuments(ctx context.Context, queryText string, l
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	const query = `SELECT id, source_type, source_id, title, content, metadata, embedding, created_at, updated_at
+	const query = `SELECT id, source_type, source_id, title, content, metadata, created_at, updated_at
 	FROM rag_documents
 	WHERE title ILIKE '%' || $1 || '%' OR content ILIKE '%' || $1 || '%'
 	ORDER BY updated_at DESC
