@@ -1,7 +1,33 @@
 package middleware
 
-import "net/http"
+import (
+	"log"
+	"net/http"
+	"runtime/debug"
 
-func Recovery(next http.Handler) http.Handler {
-	return next
+	"github.com/gin-gonic/gin"
+)
+
+func Recovery() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				requestID := GetRequestID(c)
+
+				log.Printf(
+					"request_id=%s panic=%v stack=%s",
+					requestID,
+					rec,
+					debug.Stack(),
+				)
+
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+					"error":      "internal server error",
+					"request_id": requestID,
+				})
+			}
+		}()
+
+		c.Next()
+	}
 }

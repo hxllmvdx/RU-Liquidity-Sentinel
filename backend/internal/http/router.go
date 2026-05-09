@@ -1,20 +1,27 @@
 package http
 
 import (
-	nethttp "net/http"
-	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	rediscache "github.com/ru-liquidity-sentinel/backend/internal/cache/redis"
 	"github.com/ru-liquidity-sentinel/backend/internal/grpcclient"
 	"github.com/ru-liquidity-sentinel/backend/internal/http/handlers"
+	"github.com/ru-liquidity-sentinel/backend/internal/middleware"
 	"github.com/ru-liquidity-sentinel/backend/internal/repository/postgres"
 	"github.com/ru-liquidity-sentinel/backend/internal/service"
 )
 
 func NewRouter(liquidityClient *grpcclient.LiquidityClient, db *postgres.DB, cache *rediscache.Cache) *gin.Engine {
 	r := gin.Default()
-	r.Use(corsMiddleware())
+
+	r.Use(
+		middleware.RequestID(),
+		middleware.Logging(),
+		middleware.Recovery(),
+		middleware.CORS("http://localhost:3000"),
+		middleware.Timeout(5*time.Second),
+	)
 
 	var (
 		lsiRepo      *postgres.LSIRepository
@@ -64,35 +71,4 @@ func NewRouter(liquidityClient *grpcclient.LiquidityClient, db *postgres.DB, cac
 	api.POST("/analyst/chat", analystHandler.Chat)
 
 	return r
-}
-
-func corsMiddleware() gin.HandlerFunc {
-	allowedOrigin := "http://localhost:3000"
-	allowedMethods := "GET, POST, OPTIONS"
-	allowedHeaders := "Content-Type, Authorization"
-
-	return func(c *gin.Context) {
-		origin := c.GetHeader("Origin")
-		if origin == allowedOrigin {
-			c.Header("Access-Control-Allow-Origin", allowedOrigin)
-			c.Header("Vary", "Origin")
-		}
-		c.Header("Access-Control-Allow-Methods", allowedMethods)
-		c.Header("Access-Control-Allow-Headers", allowedHeaders)
-
-		if c.Request.Method == nethttp.MethodOptions {
-			if origin != "" && origin != allowedOrigin {
-				c.AbortWithStatus(nethttp.StatusForbidden)
-				return
-			}
-			if !strings.Contains(allowedMethods, c.GetHeader("Access-Control-Request-Method")) && c.GetHeader("Access-Control-Request-Method") != "" {
-				c.AbortWithStatus(nethttp.StatusMethodNotAllowed)
-				return
-			}
-			c.AbortWithStatus(nethttp.StatusNoContent)
-			return
-		}
-
-		c.Next()
-	}
 }
