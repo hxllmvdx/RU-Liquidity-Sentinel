@@ -257,3 +257,35 @@ func (r ragDocumentRow) toDomain() domain.RAGDocument {
 		UpdatedAt:  r.UpdatedAt,
 	}
 }
+
+type dataSourceRow struct {
+	ID              uuid.UUID  `db:"id"`
+	SourceCode      string     `db:"source_code"`
+	Name            string     `db:"name"`
+	URL             *string    `db:"url"`
+	SourceType      string     `db:"source_type"`
+	UpdateFrequency *string    `db:"update_frequency"`
+	IsActive        bool       `db:"is_active"`
+	LastLoadedAt    *time.Time `db:"last_loaded_at"`
+	LastStatus      *string    `db:"last_status"`
+	LastError       *string    `db:"last_error"`
+	CreatedAt       time.Time  `db:"created_at"`
+	UpdatedAt       time.Time  `db:"updated_at"`
+}
+
+func (r dataSourceRow) toDomain() domain.DataSource {
+	return domain.DataSource{
+		ID:              r.ID,
+		SourceCode:      r.SourceCode,
+		Name:            r.Name,
+		URL:             r.URL,
+		SourceType:      r.SourceType,
+		UpdateFrequency: r.UpdateFrequency,
+		IsActive:        r.IsActive,
+		LastLoadedAt:    r.LastLoadedAt,
+		LastStatus:      r.LastStatus,
+		LastError:       r.LastError,
+		CreatedAt:       r.CreatedAt,
+		UpdatedAt:       r.UpdatedAt,
+	}
+}

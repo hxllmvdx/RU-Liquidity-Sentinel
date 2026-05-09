@@ -4,15 +4,6 @@ ON data_sources (source_code);
 CREATE INDEX IF NOT EXISTS idx_data_sources_is_active
 ON data_sources (is_active);
 
-CREATE INDEX IF NOT EXISTS idx_raw_observations_source_date
-ON raw_observations (source_id, observation_date);
-
-CREATE INDEX IF NOT EXISTS idx_raw_observations_metric_date
-ON raw_observations (metric_name, observation_date);
-
-CREATE INDEX IF NOT EXISTS idx_raw_observations_observation_date_desc
-ON raw_observations (observation_date DESC);
-
 CREATE INDEX IF NOT EXISTS idx_lsi_values_calculation_date_desc
 ON lsi_values (calculation_date DESC);
 

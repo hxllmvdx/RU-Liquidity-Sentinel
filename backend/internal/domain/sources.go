@@ -1,23 +1,10 @@
 package domain
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
 )
-
-type RawObservation struct {
-	ID              uuid.UUID
-	SourceID        uuid.UUID
-	ObservationDate time.Time
-	MetricName      string
-	MetricValue     *float64
-	Unit            *string
-	RawPayload      json.RawMessage
-	LoadedAt        time.Time
-	CreatedAt       time.Time
-}
 
 type DataSource struct {
 	ID              uuid.UUID
