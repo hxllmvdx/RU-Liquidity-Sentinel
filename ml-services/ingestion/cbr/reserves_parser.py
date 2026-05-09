@@ -1,46 +1,46 @@
-import requests
-import pandas as pd
-from bs4 import BeautifulSoup
-from datetime import datetime
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 import os
+from datetime import datetime
+import time
 
-class ReservesParser():
+class ReservesDownloader:
     def __init__(self):
-        self.download_path = os.path.join(os.getcwd(), 'data', 'raw')
+        pass
     
-    def parse(self, date_from="01.01.2004", date_to=None):
-        if date_to is None:
-            date_to = datetime.today().strftime("%d.%m.%Y")
+    def parse(self):
         URL = "https://www.cbr.ru/hd_base/RReserves/"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        params = {"UniDbQuery.Posted": "True",
-            "UniDbQuery.From": date_from,
-            "UniDbQuery.To": date_to,
-        }
-        response = requests.get(URL, params=params, headers=headers, timeout=30)
-        response.raise_for_status()
-        response.encoding = "utf-8"
-        soup = BeautifulSoup(response.text, "html.parser")
-        table = soup.find("table")
-        headers_row = [th.get_text(strip=True).replace("\xa0", " ") for th in table.find_all("th")]
+        download_dir = os.path.join(os.getcwd(),"data","raw","cbr", "reserves")
+        os.makedirs(download_dir, exist_ok=True)
+        
+        options = webdriver.ChromeOptions()
 
-        rows = []
-        for tr in table.find_all("tr")[1:]:
-            cols = tr.find_all("td")
-            if cols:
-                row = [td.get_text(strip=True).replace("\xa0", " ") for td in cols]
-                rows.append(row)
-        df = pd.DataFrame(rows, columns=headers_row[:len(rows[0])])
-        if "Дата" in df.columns:
-            df["Дата"] = pd.to_datetime(df["Дата"], dayfirst=True)
-            df = df.sort_values("Дата")
-        for col in df.columns[1:]:
-            df[col] = (df[col].astype(str).str.replace(" ", "", regex=False).str.replace(",", ".", regex=False))
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-        output_file = f"cbr_reserves_{date_from.replace('.', '-')}_to_{date_to.replace('.', '-')}.csv"
-        file_path = os.path.join(self.download_path, output_file)
-        df.to_csv(file_path, index=False, encoding="utf-8-sig")
-        return 
+        prefs = {"download.default_directory": download_dir,"download.prompt_for_download": False, "download.directory_upgrade": True}
 
-parser = ReservesParser()
-parser.parse()
+        options.add_experimental_option("prefs", prefs)
+        options.add_argument("--start-maximized")
+
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),options=options)
+        wait = WebDriverWait(driver, 30)
+
+        try:
+            driver.get(URL)
+            time.sleep(2)
+            iframes = driver.find_elements(By.TAG_NAME, "iframe")
+            if iframes:
+                driver.switch_to.frame(iframes[0])
+            
+            element = wait.until(EC.element_to_be_clickable((By.XPATH,"//span[text()='Обязательные резервы']")))
+            element.click()
+            time.sleep(10)
+
+        finally:
+            driver.quit()
+
+
+downloader = ReservesDownloader()
+downloader.parse()

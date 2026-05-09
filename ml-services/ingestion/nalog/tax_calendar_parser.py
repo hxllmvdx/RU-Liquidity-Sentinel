@@ -1,12 +1,10 @@
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium import webdriver
 from selenium.webdriver.common.by import By
 import os
 import urllib.request
 class TaxCalendarParser():
     def __init__(self):
-        self.download_path = os.path.join(os.getcwd(), 'data/raw')
+        self.download_path = os.path.join(os.getcwd(), 'data', 'raw', 'nalog')
         self.source_name = "nalog_tax_calendar"
 
 
