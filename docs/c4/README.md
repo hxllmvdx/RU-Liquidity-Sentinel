@@ -2,9 +2,9 @@
 
 Run Structurizr Lite:
 
-docker run -it --rm -p 8081:8080 \
+docker run -it --rm -p 8080:8080 \
   -v "$(pwd)/docs/c4:/usr/local/structurizr" \
-  structurizr/lite
+  structurizr/structurizr local
 
 Open:
 

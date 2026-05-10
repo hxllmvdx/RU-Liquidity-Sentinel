@@ -1,52 +1,52 @@
-workspace "RU Liquidity Sentinel" "Early warning system for RUB liquidity stress" {
+workspace "RU Liquidity Sentinel" "RUB liquidity stress early warning" {
 
   model {
-    treasuryUser = person "Treasury Analyst" "Пользователь системы: казначей, риск-аналитик или участник демо-жюри."
+    treasuryUser = person "Treasury Analyst" "Казначей или риск-аналитик."
 
-    psbSystem = softwareSystem "RU Liquidity Sentinel" "Система раннего предупреждения стресса ликвидности рублёвого денежного рынка." {
+    psbSystem = softwareSystem "RU Liquidity Sentinel" "Раннее предупреждение стресса рублёвой ликвидности." {
 
-      frontend = container "Frontend Dashboard" "Next.js web application for dashboard, modules, forecast, scenario simulator, backtest and analyst chat." "TypeScript, Next.js, React, Tailwind, shadcn/ui, Apache ECharts"
+      frontend = container "Web UI" "Дашборд и инструменты аналитика." "Next.js"
 
-      backend = container "Go API Gateway" "REST API for frontend, orchestration layer, gRPC client for ML services, PostgreSQL/Redis integration." "Go, Gin, gRPC, sqlx" {
-        apiHandlers = component "HTTP Handlers" "Accept REST requests, validate input and return JSON responses." "Gin handlers"
-        services = component "Service Layer" "Coordinates gRPC, PostgreSQL, Redis and fallback logic." "Go services"
-        grpcClient = component "gRPC Client" "Calls Python ML/Data and LLM services through protobuf contracts." "Go gRPC client"
-        repositories = component "PostgreSQL Repositories" "Reads/writes LSI, signals, SHAP, jobs, chat history and backtest data." "sqlx repositories"
-        cacheLayer = component "Redis Cache" "Caches dashboard responses and manages recalculation locks." "Redis client"
-        middleware = component "HTTP Middleware" "CORS, request_id, logging, recovery and error handling." "Gin middleware"
+      backend = container "API Gateway" "REST API и orchestration layer." "Go" {
+        apiHandlers = component "HTTP API" "REST endpoints." "Gin"
+        services = component "Services" "Бизнес-логика." "Go"
+        grpcClient = component "gRPC Client" "Вызовы Python-сервисов." "gRPC"
+        repositories = component "Repositories" "Работа с PostgreSQL." "sqlx"
+        cacheLayer = component "Cache" "Кэш и блокировки." "Redis"
+        middleware = component "Middleware" "CORS, logging, errors." "Gin"
       }
 
-      scheduler = container "Scheduler" "Runs periodic recalculation jobs and source update tasks." "Go"
+      scheduler = container "Scheduler" "Периодический пересчёт." "Go"
 
-      mlService = container "Python ML/Data Service" "Parses public data, calculates M1-M5 signals, MAD normalization, LSI, SHAP, forecast, scenario and backtest." "Python, FastAPI/gRPC, pandas, scipy, scikit-learn, SHAP" {
-        ingestion = component "Ingestion Parsers" "Downloads and parses CBR, Minfin, FNS and Roskazna data." "Python parsers"
-        modules = component "M1-M5 Module Engine" "Calculates module features and stress signals." "pandas"
-        normalization = component "MAD Normalization" "Calculates rolling 3-year MAD scores." "scipy/pandas"
-        lsiEngine = component "LSI Engine" "Aggregates normalized signals into LSI 0-100." "scikit-learn"
-        shapExplainer = component "SHAP Explainer" "Calculates feature and module contributions." "SHAP"
-        forecast = component "Forecast Engine" "Forecasts LSI for 1, 3 and 7 days." "scikit-learn"
-        scenario = component "Scenario Engine" "Runs what-if shocks and recalculates scenario LSI." "Python"
-        backtest = component "Backtest Engine" "Runs historical validation on 2014, 2022 and 2023 stress episodes." "Python"
-        grpcServer = component "gRPC Server" "Exposes ML service methods to Go backend." "grpcio"
+      mlService = container "ML/Data Service" "Сбор данных и расчёт сигналов." "Python" {
+        ingestion = component "Ingestion" "Загрузка источников." "Python"
+        modules = component "M1-M5 Engine" "Фичи и сигналы." "pandas"
+        normalization = component "Normalization" "MAD-нормализация." "scipy/pandas"
+        lsiEngine = component "LSI Engine" "Расчёт LSI." "scikit-learn"
+        shapExplainer = component "SHAP" "Объяснение вклада факторов." "SHAP"
+        forecast = component "Forecast" "Прогноз LSI." "scikit-learn"
+        scenario = component "Scenario" "What-if сценарии." "Python"
+        backtest = component "Backtest" "Историческая проверка." "Python"
+        grpcServer = component "gRPC API" "Интерфейс для Go API." "grpcio"
       }
 
-      llmService = container "LLM/RAG Analyst Service" "Generates auto-comments and answers analyst questions using RAG over system data." "Python, RAG, pgvector, LLM"
+      llmService = container "Analyst Copilot" "Комментарии и Q&A с RAG." "Python"
 
-      postgres = container "PostgreSQL" "Stores LSI history, module signals, SHAP values, backtests, chat history, RAG documents and job statuses." "PostgreSQL, pgvector" {
+      postgres = container "PostgreSQL" "История LSI, сигналы, RAG, jobs." "PostgreSQL" {
         tags "Database"
       }
 
-      redis = container "Redis" "Caches dashboard data and stores recalculation locks/job status." "Redis" {
+      redis = container "Redis" "Кэш и блокировки." "Redis" {
         tags "Database"
       }
 
-      rawStorage = container "Raw Data Storage" "Stores downloaded raw Excel/CSV/HTML files from public sources." "Filesystem or S3-compatible storage"
+      rawStorage = container "Raw Storage" "Сырые файлы источников." "S3/File storage"
     }
 
-    cbr = softwareSystem "CBR" "ЦБ РФ: RUONIA, key rate, repo auctions, reserves, liquidity data."
-    minfin = softwareSystem "Ministry of Finance" "Минфин: OFZ auction results."
-    nalog = softwareSystem "Federal Tax Service" "ФНС: tax calendar."
-    roskazna = softwareSystem "Federal Treasury" "Росказна: treasury deposits and EKS placements."
+    cbr = softwareSystem "CBR" "RUONIA, key rate, repo, reserves."
+    minfin = softwareSystem "MinFin" "OFZ auctions."
+    nalog = softwareSystem "FTS" "Tax calendar."
+    roskazna = softwareSystem "Treasury" "Deposits and EKS placements."
 
     treasuryUser -> frontend "Uses dashboard, scenario simulator, backtest and analyst chat" "HTTPS"
     frontend -> backend "Calls REST API" "HTTP/JSON"
@@ -97,40 +97,49 @@ workspace "RU Liquidity Sentinel" "Early warning system for RUB liquidity stress
   views {
     systemContext psbSystem "SystemContext" {
       include *
-      autolayout lr
     }
 
     container psbSystem "Containers" {
       include *
-      autolayout lr
     }
 
     component backend "GoBackendComponents" {
       include *
-      autolayout lr
     }
 
     component mlService "PythonMLComponents" {
       include *
-      autolayout lr
     }
 
     styles {
+      element "Element" {
+        fontSize 20
+      }
+
       element "Person" {
         shape person
         background "#0B5CAD"
         color "#FFFFFF"
+        width 300
+        height 160
+        metadata false
       }
 
       element "Software System" {
         background "#0B5CAD"
         color "#FFFFFF"
+        width 330
+        height 180
+        metadata false
       }
 
       element "Container" {
         background "#FFFFFF"
         color "#000000"
         stroke "#0B5CAD"
+        width 300
+        height 160
+        metadata false
       }
 
       element "Database" {
@@ -138,12 +147,23 @@ workspace "RU Liquidity Sentinel" "Early warning system for RUB liquidity stress
         background "#FFF7ED"
         color "#000000"
         stroke "#F97316"
+        width 270
+        height 145
+        metadata false
       }
 
       element "Component" {
         background "#FFFFFF"
         color "#000000"
         stroke "#F97316"
+        width 250
+        height 135
+        metadata false
+      }
+
+      relationship "Relationship" {
+        fontSize 16
+        width 140
       }
     }
   }
