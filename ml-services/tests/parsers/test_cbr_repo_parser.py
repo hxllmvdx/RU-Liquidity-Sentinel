@@ -10,6 +10,17 @@ FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "cbr"
 
 
 class RepoParserTest(unittest.TestCase):
+    def test_parse_available_range(self) -> None:
+        parser = RepoParser()
+        html = """
+        <html><body><p>Данные доступны с 21.11.2002 по 05.05.2026.</p></body></html>
+        """
+
+        date_from, date_to = parser.parse_available_range(html)
+
+        self.assertEqual(date_from, date(2002, 11, 21))
+        self.assertEqual(date_to, date(2026, 5, 5))
+
     def test_parse_listing_dates_fixture(self) -> None:
         parser = RepoParser()
         html = (FIXTURES_DIR / "repo_listing_sample.html").read_text(encoding="utf-8")
@@ -53,6 +64,36 @@ class RepoParserTest(unittest.TestCase):
         self.assertEqual(record.term_days, 7)
         self.assertEqual(record.first_leg_date, date(2026, 5, 6))
         self.assertEqual(record.second_leg_date, date(2026, 5, 13))
+
+    def test_parse_not_held_fixture(self) -> None:
+        parser = RepoParser()
+        html = (FIXTURES_DIR / "repo_not_held_sample.html").read_text(encoding="utf-8")
+        keyrates = [
+            CbrKeyRateRecord(
+                source_code="CBR_KEYRATE",
+                observation_date=date(2024, 10, 28),
+                rate_percent=21.0,
+                unit="percent_per_annum",
+                raw={},
+                loaded_at=parser.utc_now(),
+            )
+        ]
+
+        record = parser.parse_detail_html(html, keyrates)
+
+        assert record is not None
+        self.assertEqual(record.source_code, "CBR_REPO")
+        self.assertEqual(record.auction_date, date(2024, 12, 2))
+        self.assertEqual(record.observation_date, date(2024, 12, 2))
+        self.assertEqual(record.published_at.isoformat(), "2024-12-02T13:15:00+03:00")
+        self.assertEqual(record.auction_type, "прямое репо")
+        self.assertEqual(record.key_rate_percent, 21.0)
+        self.assertIsNone(record.demand_volume_mln_rub)
+        self.assertIsNone(record.deal_volume_mln_rub)
+        self.assertIsNone(record.cutoff_rate_percent)
+        self.assertEqual(record.term_days, 21)
+        self.assertEqual(record.raw["status"], "not_held")
+        self.assertIn("не состоялся", record.raw["message"].lower())
 
 
 if __name__ == "__main__":

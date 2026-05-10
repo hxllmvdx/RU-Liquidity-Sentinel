@@ -4,6 +4,7 @@ import argparse
 from datetime import date
 from pathlib import Path
 import logging
+import re
 
 from bs4 import BeautifulSoup
 
@@ -29,6 +30,10 @@ class KeyRateParser(BaseParser):
     def fetch(self, date_from: date, date_to: date) -> list[CbrKeyRateRecord]:
         html = self.client.get(self.path, date_from, date_to)
         return self.parse_html(html)
+
+    def discover_available_range(self) -> tuple[date, date]:
+        html = self.client.get(self.path, date(2013, 9, 17), self.utc_now().date())
+        return self.parse_available_range(html)
 
     def parse_html(self, html: str) -> list[CbrKeyRateRecord]:
         soup = BeautifulSoup(html, "html.parser")
@@ -66,6 +71,19 @@ class KeyRateParser(BaseParser):
         if not records:
             raise CbrEmptyResultError("keyrate parser produced no records")
         return records
+
+    def parse_available_range(self, html: str) -> tuple[date, date]:
+        soup = BeautifulSoup(html, "html.parser")
+        text = soup.get_text(" ", strip=True)
+        match = re.search(r"Данные доступны с\s+(\d{2}\.\d{2}\.\d{4})\s+по\s+(\d{2}\.\d{2}\.\d{4})", text)
+        if not match:
+            raise CbrParserError("keyrate available range not found in CBR response")
+
+        date_from = parse_russian_date(match.group(1))
+        date_to = parse_russian_date(match.group(2))
+        if date_from is None or date_to is None:
+            raise CbrParserError("keyrate available range could not be parsed")
+        return date_from, date_to
 
     def save(
         self,
@@ -125,8 +143,8 @@ def main() -> int:
         date_from = _parse_iso_date(args.date_from)
         date_to = _parse_iso_date(args.date_to)
     else:
-        date_from, date_to = parser.default_date_range(30)
-        LOGGER.info("using default keyrate date range from=%s to=%s", date_from.isoformat(), date_to.isoformat())
+        date_from, date_to = parser.discover_available_range()
+        LOGGER.info("using full keyrate history from=%s to=%s", date_from.isoformat(), date_to.isoformat())
 
     result = parser.run(
         date_from=date_from,

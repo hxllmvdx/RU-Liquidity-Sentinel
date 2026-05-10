@@ -13,6 +13,9 @@ from ingestion.cbr.schemas import CbrBankingLiquidityRecord
 from ingestion.cbr.utils import parse_russian_date, parse_russian_float
 
 
+DEFAULT_MIN_DATE = date(1900, 1, 1)
+
+
 class LiquidityParser(BaseParser):
     source_name = "cbr_liquidity"
     source_code = "CBR_BANKING_LIQUIDITY"
@@ -64,12 +67,14 @@ class LiquidityParser(BaseParser):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--from", dest="date_from", default="2014-02-01")
-    parser.add_argument("--to", dest="date_to", default="2026-03-02")
+    parser.add_argument("--from", dest="date_from")
+    parser.add_argument("--to", dest="date_to")
     parser.add_argument("--out-dir", dest="out_dir", default="data/raw")
     args = parser.parse_args()
     instance = LiquidityParser()
-    result = instance.run(date.fromisoformat(args.date_from), date.fromisoformat(args.date_to), Path(args.out_dir))
+    date_from = date.fromisoformat(args.date_from) if args.date_from else DEFAULT_MIN_DATE
+    date_to = date.fromisoformat(args.date_to) if args.date_to else instance.utc_now().date()
+    result = instance.run(date_from, date_to, Path(args.out_dir))
     print(result.output_path)
 
 
