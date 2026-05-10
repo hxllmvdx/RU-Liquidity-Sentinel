@@ -63,6 +63,116 @@ class TreasuryParsersTest(unittest.TestCase):
         self.assertEqual(aggregated[0].participant_banks_count, 4)
         self.assertEqual(aggregated[0].auction_count, 2)
 
+    def test_roskazna_cache_only_uses_local_xml(self) -> None:
+        parser = EksDepositsParser()
+        xml_text = (FIXTURES_DIR / "roskazna" / "eks_sample.xml").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            parser._output_root = Path(tmp_dir)
+            parser._use_cache_only = True
+            source_path = parser.source_files_dir / "20260508_sample.xml"
+            source_path.parent.mkdir(parents=True, exist_ok=True)
+            source_path.write_text(xml_text, encoding="utf-8")
+            content, status = parser._download_or_load_cached("https://roskazna.gov.ru/storage/operation-day-files/20260508_sample.xml", source_path)
+
+        self.assertIsNotNone(content)
+        self.assertEqual(status["status"], "cached")
+
+    def test_roskazna_operation_day_fixture(self) -> None:
+        parser = EksDepositsParser()
+        html = """
+        <table>
+          <tr>
+            <th>Информация об операциях/Дата</th>
+            <th>Показатель</th>
+            <th>01.12.2024</th>
+            <th>01.12.2024</th>
+            <th>02.12.2024</th>
+          </tr>
+          <tr>
+            <td>Размещено на банковских депозитах</td>
+            <td>Сумма, млн рублей</td>
+            <td>100 000,0</td>
+            <td>50 000,0</td>
+            <td>75 000,0</td>
+          </tr>
+        </table>
+        """
+
+        records = parser.parse_operation_day_html(html, "https://roskazna.gov.ru/finansovye-operacii/operacionnyj-den/?old=01/12/2024&this=02/12/2024")
+        aggregated = parser._aggregate_by_day(records)
+
+        self.assertEqual(len(aggregated), 2)
+        self.assertEqual(aggregated[0].observation_date, date(2024, 12, 1))
+        self.assertEqual(aggregated[0].placement_volume_bln_rub, 150.0)
+        self.assertIsNone(aggregated[0].participant_banks_count)
+        self.assertEqual(aggregated[1].observation_date, date(2024, 12, 2))
+        self.assertEqual(aggregated[1].placement_volume_bln_rub, 75.0)
+
+    def test_roskazna_operation_day_filters_unexpected_dates(self) -> None:
+        parser = EksDepositsParser()
+        html = """
+        <table>
+          <tr>
+            <th>Информация об операциях/Дата</th>
+            <th>Показатель</th>
+            <th>04.05.2026</th>
+            <th>05.05.2026</th>
+          </tr>
+          <tr>
+            <td>Размещено на банковских депозитах</td>
+            <td>Сумма, млн рублей</td>
+            <td>100 000,0</td>
+            <td>50 000,0</td>
+          </tr>
+        </table>
+        """
+
+        records = parser.parse_operation_day_html(
+            html,
+            "https://roskazna.gov.ru/finansovye-operacii/operacionnyj-den/?old=01/01/2012&this=29/04/2012",
+            expected_from=date(2012, 1, 1),
+            expected_to=date(2012, 4, 29),
+        )
+
+        self.assertEqual(records, [])
+
+    def test_roskazna_operation_day_xml_fixture(self) -> None:
+        parser = EksDepositsParser()
+        xml = """<?xml version="1.0"?>
+        <OperDay>
+          <Rec Num="1">
+            <OperDate>2021-01-11</OperDate>
+            <DepoSum>150000000000</DepoSum>
+            <DepoCntOrg>3</DepoCntOrg>
+          </Rec>
+          <Rec Num="2">
+            <OperDate>2021-01-11</OperDate>
+            <DepoSum>50000000000</DepoSum>
+            <DepoCntOrg>4</DepoCntOrg>
+          </Rec>
+          <Rec Num="3">
+            <OperDate>2021-01-12</OperDate>
+            <DepoSum/>
+            <DepoCntOrg/>
+          </Rec>
+        </OperDay>
+        """
+
+        records = parser.parse_operation_day_xml(
+            xml,
+            "https://roskazna.gov.ru/finansovye-operacii/operacionnyj-den/",
+            expected_from=date(2021, 1, 1),
+            expected_to=date(2021, 12, 31),
+        )
+        aggregated = parser._aggregate_by_day(records)
+
+        self.assertEqual(len(aggregated), 2)
+        self.assertEqual(aggregated[0].observation_date, date(2021, 1, 11))
+        self.assertEqual(aggregated[0].placement_volume_bln_rub, 200.0)
+        self.assertEqual(aggregated[0].participant_banks_count, 4)
+        self.assertEqual(aggregated[1].observation_date, date(2021, 1, 12))
+        self.assertEqual(aggregated[1].placement_volume_bln_rub, 0.0)
+
     def test_cbr_liquidity_parser_fixture(self) -> None:
         parser = LiquidityParser()
         html = (FIXTURES_DIR / "cbr" / "liquidity_sample.html").read_text(encoding="utf-8")
@@ -105,19 +215,33 @@ class TreasuryParsersTest(unittest.TestCase):
                     },
                 ],
             )
-            self._write_csv(liquidity_path, [{"observation_date": "2026-03-31", "value_bln_rub": -850.0}])
+            self._write_csv(
+                liquidity_path,
+                [
+                    {"observation_date": "2026-03-31", "value_bln_rub": -850.0},
+                    {"observation_date": "2026-04-03", "value_bln_rub": -800.0},
+                    {"observation_date": "2026-04-17", "value_bln_rub": -780.0},
+                ],
+            )
 
             features = build_features_from_files(sors_path, eks_path, liquidity_path)
 
-        self.assertEqual(len(features), 2)
+        self.assertEqual(len(features), 5)
+        self.assertEqual(features[0].observation_date, date(2026, 3, 1))
+        self.assertEqual(features[1].observation_date, date(2026, 3, 31))
+        self.assertEqual(features[2].observation_date, date(2026, 4, 1))
+        self.assertEqual(features[3].observation_date, date(2026, 4, 3))
+        self.assertEqual(features[4].observation_date, date(2026, 4, 17))
         self.assertEqual(features[0].federal_budget_and_extrabudgetary_funds_balances_bln_rub, 12.0)
-        self.assertEqual(features[1].federal_budget_and_extrabudgetary_funds_balances_bln_rub, 15.0)
-        self.assertIsNone(features[0].delta_month_bln_rub)
-        self.assertEqual(features[1].delta_month_bln_rub, 3.0)
-        self.assertIsNone(features[1].delta_week_bln_rub)
-        self.assertEqual(features[1].eks_deposit_placement_volume_bln_rub, 12.0)
-        self.assertEqual(features[1].participant_banks_count, 4)
-        self.assertEqual(features[1].ground_truth_liquidity_bln_rub, -850.0)
+        self.assertAlmostEqual(features[1].federal_budget_and_extrabudgetary_funds_balances_bln_rub, 14.903225806451612)
+        self.assertEqual(features[2].federal_budget_and_extrabudgetary_funds_balances_bln_rub, 15.0)
+        self.assertEqual(features[3].federal_budget_and_extrabudgetary_funds_balances_bln_rub, 15.0)
+        self.assertEqual(features[2].delta_month_bln_rub, 3.0)
+        self.assertEqual(features[4].delta_week_bln_rub, 0.0)
+        self.assertEqual(features[3].eks_deposit_placement_volume_bln_rub, 5.0)
+        self.assertEqual(features[4].eks_deposit_placement_volume_bln_rub, 7.0)
+        self.assertEqual(features[4].participant_banks_count, 4)
+        self.assertEqual(features[4].ground_truth_liquidity_bln_rub, -780.0)
 
     def test_writer_creates_csv(self) -> None:
         parser = LiquidityParser()

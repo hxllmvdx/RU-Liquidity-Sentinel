@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-import logging
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class BaseParser(ABC):
 
     @property
     def default_out_dir(self) -> Path:
-        return self.repo_root / "data" / "raw"
+        return self.repo_root / ".." / "data" / "raw"
 
     @staticmethod
     def utc_now() -> datetime:
@@ -42,4 +41,3 @@ class BaseParser(ABC):
     @abstractmethod
     def fetch(self, date_from: date, date_to: date):
         raise NotImplementedError
-
