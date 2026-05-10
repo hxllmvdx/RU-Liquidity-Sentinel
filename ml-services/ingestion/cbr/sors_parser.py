@@ -26,6 +26,7 @@ XML_NS = {
 TARGET_LINK_TEXT = "Бюджетные средства на счетах кредитных организаций"
 TARGET_ROW_PATTERN = re.compile(r"федерального бюджета|внебюджетных фондов", re.I)
 INDICATOR_NAME = "federal_budget_and_extrabudgetary_funds_balances_on_commercial_bank_accounts"
+DEFAULT_MIN_DATE = date(1900, 1, 1)
 
 
 @dataclass(slots=True)
@@ -169,12 +170,14 @@ class SorsParser(BaseParser):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--from", dest="date_from", default="2019-01-01")
-    parser.add_argument("--to", dest="date_to", default="2026-05-01")
+    parser.add_argument("--from", dest="date_from")
+    parser.add_argument("--to", dest="date_to")
     parser.add_argument("--out-dir", dest="out_dir", default="data/raw")
     args = parser.parse_args()
     instance = SorsParser()
-    result = instance.run(date.fromisoformat(args.date_from), date.fromisoformat(args.date_to), Path(args.out_dir))
+    date_from = date.fromisoformat(args.date_from) if args.date_from else DEFAULT_MIN_DATE
+    date_to = date.fromisoformat(args.date_to) if args.date_to else instance.utc_now().date()
+    result = instance.run(date_from, date_to, Path(args.out_dir))
     print(result.output_path)
 
 

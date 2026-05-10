@@ -20,6 +20,7 @@ PAGE_URL = (
     "https://roskazna.gov.ru/finansovye-operacii/razmeshchenie-sredstv-edinogo-kaznachejskogo-scheta/"
     "razmeshchenie-sredstv-edinogo-kaznachejskogo-scheta-na-bankovskih-depozitah"
 )
+DEFAULT_MIN_DATE = date(1900, 1, 1)
 
 
 class EksDepositsParser(BaseParser):
@@ -124,12 +125,14 @@ class EksDepositsParser(BaseParser):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--from", dest="date_from", default="2021-01-01")
-    parser.add_argument("--to", dest="date_to", default="2026-05-01")
+    parser.add_argument("--from", dest="date_from")
+    parser.add_argument("--to", dest="date_to")
     parser.add_argument("--out-dir", dest="out_dir", default="data/raw")
     args = parser.parse_args()
     instance = EksDepositsParser()
-    result = instance.run(date.fromisoformat(args.date_from), date.fromisoformat(args.date_to), Path(args.out_dir))
+    date_from = date.fromisoformat(args.date_from) if args.date_from else DEFAULT_MIN_DATE
+    date_to = date.fromisoformat(args.date_to) if args.date_to else instance.utc_now().date()
+    result = instance.run(date_from, date_to, Path(args.out_dir))
     print(result.output_path)
 
 

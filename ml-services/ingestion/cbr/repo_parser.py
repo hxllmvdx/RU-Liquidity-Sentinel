@@ -4,6 +4,7 @@ import argparse
 from datetime import date, timedelta
 from pathlib import Path
 import logging
+import re
 
 from bs4 import BeautifulSoup
 
@@ -55,6 +56,10 @@ class RepoParser(BaseParser):
             raise CbrEmptyResultError("repo parser produced no records")
         return records
 
+    def discover_available_range(self) -> tuple[date, date]:
+        html = self.client.get(self.path, date(2002, 11, 21), self.utc_now().date(), extra_params={"UniDbQuery.P1": "0"})
+        return self.parse_available_range(html)
+
     def parse_listing_dates(self, html: str) -> list[date]:
         soup = BeautifulSoup(html, "html.parser")
         table = soup.select_one("table.data")
@@ -77,12 +82,34 @@ class RepoParser(BaseParser):
                 dates.append(parsed_date)
         return dates
 
+    def parse_available_range(self, html: str) -> tuple[date, date]:
+        soup = BeautifulSoup(html, "html.parser")
+        datepicker = soup.select_one(".datepicker-filter")
+        if datepicker is not None:
+            raw_from = clean_text(datepicker.get("data-min-date"))
+            raw_to = clean_text(datepicker.get("data-max-date"))
+            date_from = parse_russian_date(raw_from)
+            date_to = parse_russian_date(raw_to)
+        else:
+            text = soup.get_text(" ", strip=True)
+            match = re.search(r"Данные доступны с\s+(\d{2}\.\d{2}\.\d{4})\s+по\s+(\d{2}\.\d{2}\.\d{4})", text)
+            if not match:
+                raise CbrParserError("repo available range not found in CBR response")
+            date_from = parse_russian_date(match.group(1))
+            date_to = parse_russian_date(match.group(2))
+
+        if date_from is None or date_to is None:
+            raise CbrParserError("repo available range could not be parsed")
+        return date_from, date_to
+
     def parse_detail_html(self, html: str, keyrate_records: list[CbrKeyRateRecord] | None = None) -> CbrRepoAuctionRecord | None:
         soup = BeautifulSoup(html, "html.parser")
         caption = soup.select_one("div.table-caption.gray")
         detail_table = soup.select_one("table.data.without_header.levels")
-        if caption is None or detail_table is None:
-            raise CbrParserError("repo detail table not found in CBR response")
+        if detail_table is None:
+            return self.parse_not_held_page(html, keyrate_records or [])
+        if caption is None:
+            raise CbrParserError("repo detail caption not found in CBR response")
 
         observation_date, published_at = parse_repo_caption_datetime(caption.get_text(" ", strip=True))
         if observation_date is None:
@@ -136,6 +163,55 @@ class RepoParser(BaseParser):
             second_leg_date=parse_russian_date(raw_pairs.get("Дата исполнения второй части сделки")),
             unit={"volume": "mln_rub", "rate": "percent_per_annum"},
             raw={"caption": clean_text(caption.get_text(" ", strip=True)), "source_fields": raw_pairs},
+            loaded_at=self.utc_now(),
+        )
+
+    def parse_not_held_page(self, html: str, keyrate_records: list[CbrKeyRateRecord]) -> CbrRepoAuctionRecord | None:
+        soup = BeautifulSoup(html, "html.parser")
+        text = clean_text(soup.get_text(" ", strip=True))
+        if "не состоялся" not in text.lower():
+            raise CbrParserError("repo detail table not found in CBR response")
+
+        date_match = re.search(r"(\d{2}\.\d{2}\.\d{4})", text)
+        term_match = re.search(r"на срок\s+(\d+)\s+дн", text, flags=re.IGNORECASE)
+        time_match = re.search(r"с\s+(\d{2}:\d{2})\s+до\s+(\d{2}:\d{2})", text)
+
+        observation_date = parse_russian_date(date_match.group(1)) if date_match else None
+        if observation_date is None:
+            raise CbrParserError("repo not-held page date could not be parsed")
+
+        published_at = None
+        if time_match:
+            _, published_at = parse_repo_caption_datetime(f"{date_match.group(1)} на {time_match.group(2)}")
+
+        key_rate_percent = self.lookup_key_rate(observation_date, keyrate_records)
+        return CbrRepoAuctionRecord(
+            source_code=self.source_code,
+            auction_date=observation_date,
+            observation_date=observation_date,
+            published_at=published_at,
+            auction_type="прямое репо" if "прямого репо" in text.lower() else None,
+            key_rate_percent=key_rate_percent,
+            rate_spread_to_key_rate_percent=None,
+            demand_volume_mln_rub=None,
+            demand_volume_bln_rub=None,
+            deal_volume_mln_rub=None,
+            placement_volume_bln_rub=None,
+            cover_ratio=None,
+            cutoff_rate_percent=None,
+            weighted_average_rate_percent=None,
+            min_declared_rate_percent=None,
+            max_declared_rate_percent=None,
+            deal_volume_within_limit_mln_rub=None,
+            weighted_average_rate_within_limit_percent=None,
+            term_days=int(term_match.group(1)) if term_match else None,
+            first_leg_date=None,
+            second_leg_date=None,
+            unit={"volume": "mln_rub", "rate": "percent_per_annum"},
+            raw={
+                "status": "not_held",
+                "message": text,
+            },
             loaded_at=self.utc_now(),
         )
 
@@ -223,9 +299,8 @@ def main() -> int:
         date_from = _parse_iso_date(args.date_from)
         date_to = _parse_iso_date(args.date_to)
     else:
-        date_to = parser.utc_now().date()
-        date_from = date_to - timedelta(days=30)
-        LOGGER.info("using default repo date range from=%s to=%s", date_from.isoformat(), date_to.isoformat())
+        date_from, date_to = parser.discover_available_range()
+        LOGGER.info("using full repo history from=%s to=%s", date_from.isoformat(), date_to.isoformat())
 
     result = parser.run(
         date_from=date_from,

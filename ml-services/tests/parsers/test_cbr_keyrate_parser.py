@@ -24,6 +24,17 @@ class CbrParsingHelpersTest(unittest.TestCase):
 
 
 class KeyRateParserTest(unittest.TestCase):
+    def test_parse_available_range(self) -> None:
+        parser = KeyRateParser()
+        html = """
+        <html><body><div class="table-caption">Данные доступны с 17.09.2013 по 08.05.2026.</div></body></html>
+        """
+
+        date_from, date_to = parser.parse_available_range(html)
+
+        self.assertEqual(date_from, date(2013, 9, 17))
+        self.assertEqual(date_to, date(2026, 5, 8))
+
     def test_parse_fixture(self) -> None:
         parser = KeyRateParser()
         html = (FIXTURES_DIR / "keyrate_sample.html").read_text(encoding="utf-8")
