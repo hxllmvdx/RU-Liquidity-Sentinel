@@ -13,6 +13,7 @@ from ingestion.minfin.ofz_auction_exporter import export_outputs
 from ingestion.minfin.ofz_auction_normalizer import split_duplicates
 from ingestion.minfin.ofz_auction_parser import MinfinOFZAuctionParser
 from ingestion.minfin.ofz_auction_validation import validate_records
+from ingestion.minfin.yield_curve_spread_calculator import add_yield_curve_spread, drop_temporary_fields
 
 
 class OFZParser(BaseParser):
@@ -39,6 +40,7 @@ def main() -> None:
     parser = MinfinOFZAuctionParser(config_path=config_path, raw_dir=raw_dir)
     sources = parser.discover_sources(year=args.year, save_raw=args.save_raw)
     records, source_catalog = parser.parse_sources(sources)
+    add_yield_curve_spread(records)
 
     cbr_catalog: list[dict] = []
     if args.with_cbr_check:
@@ -55,6 +57,7 @@ def main() -> None:
             record["cbr_confirmation_title"] = confirmation.matched_title
             cbr_catalog.extend(confirmation.matches)
 
+    drop_temporary_fields(records)
     dedupe = split_duplicates(pd.DataFrame(records))
     validated = validate_records(dedupe.deduped.to_dict(orient="records"))
     summary = parser.summarize(validated, sources)

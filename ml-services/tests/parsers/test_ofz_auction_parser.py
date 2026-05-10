@@ -25,6 +25,7 @@ def test_parse_excel_returns_only_auction_dataset_fields() -> None:
     assert records
     record = records[0]
     assert set(record) == {
+        "_days_to_maturity",
         "auction_date",
         "ofz_issue",
         "offer_volume_bln_rub",

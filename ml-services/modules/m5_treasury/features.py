@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import csv
+from collections import defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -30,19 +31,41 @@ def _read_csv(path: Path) -> list[dict]:
         return list(csv.DictReader(handle))
 
 
+def _month_start(value: date) -> date:
+    return date(value.year, value.month, 1)
+
+
 def build_features(
     sors_records: list[dict],
     eks_records: list[dict],
     liquidity_records: list[dict],
 ) -> list[M5TreasuryFeatureRecord]:
-    sors_by_date = {
-        date.fromisoformat(item["observation_date"]): item
-        for item in sors_records
-    }
-    eks_by_date = {
-        date.fromisoformat(item["observation_date"]): item
-        for item in eks_records
-    }
+    sors_grouped: dict[date, list[dict]] = defaultdict(list)
+    for item in sors_records:
+        sors_grouped[date.fromisoformat(item["observation_date"])].append(item)
+    sors_by_date: dict[date, dict] = {}
+    for observation_date, items in sors_grouped.items():
+        sors_by_date[observation_date] = {
+            "observation_date": observation_date.isoformat(),
+            "value_bln_rub": sum(_maybe_float(item["value_bln_rub"]) or 0.0 for item in items),
+            "source_file": ",".join(sorted({item["source_file"] for item in items if item.get("source_file")})),
+        }
+
+    eks_monthly_grouped: dict[date, list[dict]] = defaultdict(list)
+    for item in eks_records:
+        eks_monthly_grouped[_month_start(date.fromisoformat(item["observation_date"]))].append(item)
+    eks_by_date: dict[date, dict] = {}
+    for observation_date, items in eks_monthly_grouped.items():
+        eks_by_date[observation_date] = {
+            "observation_date": observation_date.isoformat(),
+            "placement_volume_bln_rub": sum(_maybe_float(item["placement_volume_bln_rub"]) or 0.0 for item in items),
+            "participant_banks_count": max(
+                (_maybe_int(item["participant_banks_count"]) for item in items if _maybe_int(item["participant_banks_count"]) is not None),
+                default=None,
+            ),
+            "source_file": ",".join(sorted({item["source_file"] for item in items if item.get("source_file")})),
+        }
+
     liquidity_by_date = {
         date.fromisoformat(item["observation_date"]): item
         for item in liquidity_records

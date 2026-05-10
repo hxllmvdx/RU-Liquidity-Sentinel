@@ -5,13 +5,14 @@ from collections import defaultdict
 from datetime import date
 from pathlib import Path
 import re
+from urllib.parse import urlparse
 from xml.etree import ElementTree as ET
 
 from bs4 import BeautifulSoup
 
 from ingestion.base_parser import BaseParser, ParserRunResult
 from ingestion.cbr.io import write_csv_atomic
-from ingestion.cbr.utils import convert_to_bln_rub, parse_russian_date
+from ingestion.cbr.utils import convert_to_bln_rub, parse_russian_date, parse_russian_float
 from ingestion.roskazna.client import RoskaznaClient
 from ingestion.roskazna.schemas import RoskaznaEksDepositRecord
 
@@ -46,21 +47,27 @@ class EksDepositsParser(BaseParser):
     def discover_xml_links(self, html: str, date_from: date, date_to: date) -> list[tuple[date, str]]:
         soup = BeautifulSoup(html, "html.parser")
         links: list[tuple[date, str]] = []
+        seen: set[tuple[date, str]] = set()
         for link in soup.find_all("a", href=True):
             text = " ".join(link.get_text(" ", strip=True).split())
             title = " ".join((link.get("title") or "").split())
             href = link["href"]
-            if not href.lower().endswith(".xml"):
+            parsed_href = urlparse(href)
+            if not parsed_href.path.lower().endswith(".xml"):
                 continue
             label = title or text
-            match = re.match(r"(\d{2}\.\d{2}\.\d{4})", label)
+            match = re.search(r"(\d{2}\.\d{2}\.\d{4})", label)
             if not match:
                 continue
             observation_date = parse_russian_date(match.group(1))
             if observation_date is None or not (date_from <= observation_date <= date_to):
                 continue
             full_url = href if href.startswith("http") else f"{self.client.base_url}{href}"
-            links.append((observation_date, full_url))
+            candidate = (observation_date, full_url)
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            links.append(candidate)
         return links
 
     def parse_xml(self, xml_text: str, observation_date: date, source_path: Path) -> list[RoskaznaEksDepositRecord]:
@@ -68,15 +75,16 @@ class EksDepositsParser(BaseParser):
         loaded_at = self.utc_now()
         records: list[RoskaznaEksDepositRecord] = []
         for node in root:
-            raw = {child.tag: (child.text or "").strip() for child in node}
+            raw = {self._local_name(child.tag): (child.text or "").strip() for child in node}
+            record_observation_date = parse_russian_date(raw.get("aucdate")) or observation_date
             period_from = parse_russian_date(raw.get("firstdate"))
             period_to = parse_russian_date(raw.get("seconddate"))
-            settle_mln = float(raw["totalsettle"]) if raw.get("totalsettle") else None
-            participant_banks_count = int(raw["crbidders"]) if raw.get("crbidders") else None
+            settle_mln = parse_russian_float(raw.get("totalsettle"))
+            participant_banks_count = int(parse_russian_float(raw.get("crbidders"))) if raw.get("crbidders") else None
             records.append(
                 RoskaznaEksDepositRecord(
                     source_code=self.source_code,
-                    observation_date=observation_date,
+                    observation_date=record_observation_date,
                     period_from=period_from,
                     period_to=period_to,
                     placement_volume_bln_rub=convert_to_bln_rub(settle_mln, "млн руб."),
@@ -89,6 +97,10 @@ class EksDepositsParser(BaseParser):
                 )
             )
         return records
+
+    @staticmethod
+    def _local_name(tag: str) -> str:
+        return tag.split("}", 1)[-1] if "}" in tag else tag
 
     def _aggregate_by_day(self, records: list[RoskaznaEksDepositRecord]) -> list[RoskaznaEksDepositRecord]:
         grouped: dict[date, list[RoskaznaEksDepositRecord]] = defaultdict(list)

@@ -9,7 +9,6 @@ from typing import Any
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
-from docx import Document
 import pandas as pd
 import requests
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -17,7 +16,6 @@ import yaml
 
 from ingestion.minfin.ofz_auction_normalizer import (
     calculate_cover_ratio,
-    extract_issue,
     is_overcovered,
     is_undercovered,
     millions_to_billions,
@@ -166,8 +164,17 @@ class MinfinOFZAuctionParser:
             "Объем предложения": "offer_volume_mln_rub",
             "Цена отсечения": "cut_off_price_pct",
             "Цена средневзвешенная": "weighted_avg_price_pct",
+            "Доходность по цене отсечения": "cut_off_yield_pct",
+            "Доходность по цене отсечения*": "cut_off_yield_pct",
+            "Доходность по цене отсечения**": "cut_off_yield_pct",
             "Доходность по цене отсечения***": "cut_off_yield_pct",
+            "Доходность по средневзве- шенной цене": "weighted_avg_yield",
+            "Доходность по средневзве- шенной цене*": "weighted_avg_yield",
+            "Доходность по средневзве- шенной цене**": "weighted_avg_yield",
             "Доходность по средневзве- шенной цене***": "weighted_avg_yield",
+            "Доходность по средневзвешенной цене": "weighted_avg_yield",
+            "Доходность по средневзвешенной цене*": "weighted_avg_yield",
+            "Доходность по средневзвешенной цене**": "weighted_avg_yield",
             "Доходность по средневзвешенной цене***": "weighted_avg_yield",
             "Совокупный объем спроса по номиналу": "demand_volume_mln_rub",
             "Объем размещения по номиналу": "placement_volume_mln_rub",
@@ -194,6 +201,7 @@ class MinfinOFZAuctionParser:
                 {
                     "auction_date": auction_date,
                     "ofz_issue": normalized_issue,
+                    "_days_to_maturity": normalize_number(row.get("days_to_maturity")),
                     "offer_volume_bln_rub": offer_volume_bln_rub,
                     "demand_volume_bln_rub": demand_volume_bln_rub,
                     "placement_volume_bln_rub": placement_volume_bln_rub,

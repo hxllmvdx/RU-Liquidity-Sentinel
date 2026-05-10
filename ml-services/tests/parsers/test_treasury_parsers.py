@@ -83,18 +83,26 @@ class TreasuryParsersTest(unittest.TestCase):
                 sors_path,
                 [
                     {"observation_date": "2026-03-01", "value_bln_rub": 10.0, "source_file": "s1.xlsx"},
+                    {"observation_date": "2026-03-01", "value_bln_rub": 2.0, "source_file": "s1.xlsx"},
                     {"observation_date": "2026-04-01", "value_bln_rub": 12.0, "source_file": "s2.xlsx"},
+                    {"observation_date": "2026-04-01", "value_bln_rub": 3.0, "source_file": "s2.xlsx"},
                 ],
             )
             self._write_csv(
                 eks_path,
                 [
                     {
-                        "observation_date": "2026-04-01",
+                        "observation_date": "2026-04-03",
                         "placement_volume_bln_rub": 5.0,
                         "participant_banks_count": 3,
                         "source_file": "e1.xml",
-                    }
+                    },
+                    {
+                        "observation_date": "2026-04-17",
+                        "placement_volume_bln_rub": 7.0,
+                        "participant_banks_count": 4,
+                        "source_file": "e2.xml",
+                    },
                 ],
             )
             self._write_csv(liquidity_path, [{"observation_date": "2026-03-31", "value_bln_rub": -850.0}])
@@ -102,10 +110,13 @@ class TreasuryParsersTest(unittest.TestCase):
             features = build_features_from_files(sors_path, eks_path, liquidity_path)
 
         self.assertEqual(len(features), 2)
+        self.assertEqual(features[0].federal_budget_and_extrabudgetary_funds_balances_bln_rub, 12.0)
+        self.assertEqual(features[1].federal_budget_and_extrabudgetary_funds_balances_bln_rub, 15.0)
         self.assertIsNone(features[0].delta_month_bln_rub)
-        self.assertEqual(features[1].delta_month_bln_rub, 2.0)
+        self.assertEqual(features[1].delta_month_bln_rub, 3.0)
         self.assertIsNone(features[1].delta_week_bln_rub)
-        self.assertEqual(features[1].participant_banks_count, 3)
+        self.assertEqual(features[1].eks_deposit_placement_volume_bln_rub, 12.0)
+        self.assertEqual(features[1].participant_banks_count, 4)
         self.assertEqual(features[1].ground_truth_liquidity_bln_rub, -850.0)
 
     def test_writer_creates_csv(self) -> None:
