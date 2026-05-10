@@ -2,6 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 import os
 import urllib.request
+from selenium.webdriver.chrome.options import Options
 class TaxCalendarParser1:
     def __init__(self):
         self.download_path = os.path.join(os.getcwd(), 'data', 'raw', 'nalog')
@@ -22,6 +23,3 @@ class TaxCalendarParser1:
                 filepath = os.path.join(self.download_path, filename)
                 urllib.request.urlretrieve(href, filepath)
         driver.quit()
-
-parser = TaxCalendarParser1()
-parser.parse()
