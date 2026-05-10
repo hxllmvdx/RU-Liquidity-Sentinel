@@ -104,9 +104,9 @@ def save_calendar_to_csv(df: pd.DataFrame, output_path: str):
         header=not file_exists
     )
 
-folder = Path('data/raw')
+folder = Path('data/raw/nalog')
 xml_files = list(folder.glob('*.xml'))
-output_csv = 'data/raw/tax_calendar_all.csv'
+output_csv = 'data/processed/tax_calendar_all.csv'
 if os.path.exists(output_csv):
     os.remove(output_csv)
 
