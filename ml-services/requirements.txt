@@ -11,4 +11,13 @@ grpcio
 grpcio-tools
 pydantic
 beautifulsoup4
+lxml
 requests
+openpyxl
+xlrd
+python-docx
+tenacity
+loguru
+pyarrow
+pyyaml
+pytest

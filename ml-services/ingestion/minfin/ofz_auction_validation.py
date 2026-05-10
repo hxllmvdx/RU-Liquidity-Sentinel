@@ -7,14 +7,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class OFZAuctionRecord(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     auction_date: date
     ofz_issue: str = Field(min_length=3)
     offer_volume_bln_rub: float | None = None
     demand_volume_bln_rub: float | None = None
     placement_volume_bln_rub: float | None = None
-    revenue_bln_rub: float | None = None
     cover_ratio: float | None = None
     weighted_avg_yield: float | None = None
     yield_curve_spread_bp: float | None = None

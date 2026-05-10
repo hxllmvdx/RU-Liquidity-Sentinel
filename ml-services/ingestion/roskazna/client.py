@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import warnings
 
+import certifi
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.exceptions import InsecureRequestWarning
@@ -21,6 +22,8 @@ class RoskaznaClient:
 
     def __init__(self, timeout: float = 20.0, user_agent: str = "RU-Liquidity-Sentinel/1.0") -> None:
         self.timeout = timeout
+        self.ca_bundle = certifi.where()
+        self._logged_insecure_fallback = False
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -41,9 +44,13 @@ class RoskaznaClient:
 
     def get(self, url: str, *, binary: bool = False) -> bytes | str:
         try:
-            response = self.session.get(url, timeout=self.timeout)
+            response = self.session.get(url, timeout=self.timeout, verify=self.ca_bundle)
         except requests.exceptions.SSLError:
-            LOGGER.warning("Roskazna TLS verification failed for %s, retrying without verification", url)
+            if not self._logged_insecure_fallback:
+                LOGGER.warning(
+                    "Roskazna TLS verification failed with local trust store; using temporary insecure fallback for this run"
+                )
+                self._logged_insecure_fallback = True
             warnings.simplefilter("ignore", InsecureRequestWarning)
             response = self.session.get(url, timeout=self.timeout, verify=False)
         except requests.RequestException as exc:

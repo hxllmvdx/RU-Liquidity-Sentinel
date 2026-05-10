@@ -4,7 +4,7 @@ from ingestion.minfin.ofz_auction_parser import MinfinOFZAuctionParser
 from ingestion.minfin.ofz_auction_source import RawSource
 
 
-def test_parse_excel_keeps_extended_fields() -> None:
+def test_parse_excel_returns_only_auction_dataset_fields() -> None:
     fixture = Path("/tmp/ofz_2026.xlsx")
     parser = MinfinOFZAuctionParser(
         config_path=Path("ml-services/ingestion/minfin/sources.yaml"),
@@ -24,7 +24,20 @@ def test_parse_excel_keeps_extended_fields() -> None:
     )
     assert records
     record = records[0]
-    assert "security_type" in record
-    assert "cut_off_price_pct" in record
-    assert "weighted_avg_price_pct" in record
-    assert "revenue_bln_rub" in record
+    assert set(record) == {
+        "auction_date",
+        "ofz_issue",
+        "offer_volume_bln_rub",
+        "demand_volume_bln_rub",
+        "placement_volume_bln_rub",
+        "cover_ratio",
+        "weighted_avg_yield",
+        "yield_curve_spread_bp",
+        "is_undercovered",
+        "is_overcovered",
+        "cbr_confirmed",
+        "source_url",
+        "cbr_confirmation_url",
+        "parsed_at",
+    }
+    assert all(r["ofz_issue"] != "ДРПА" for r in records)

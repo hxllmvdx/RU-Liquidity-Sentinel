@@ -60,6 +60,7 @@ def main() -> None:
     summary = parser.summarize(validated, sources)
     report = {
         "requested_year": args.year,
+        "min_history_year": 2015,
         "records_parsed": len(records),
         "records_validated": len(validated),
         "duplicates_detected": int(len(dedupe.conflicts)),
