@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from pathlib import Path
 import os
 
-class TaxCalendarParser:
+class TaxCalendarParser2:
     def __init__(self, xml_path: str = None, xml_string: str = None):
         self.xml_path = xml_path
         self.xml_string = xml_string
@@ -111,7 +111,7 @@ if os.path.exists(output_csv):
     os.remove(output_csv)
 
 for xml_file in xml_files:
-    parser = TaxCalendarParser(xml_path=str(xml_file))
+    parser = TaxCalendarParser2(xml_path=str(xml_file))
     df = parser.parse()
     if not df.empty:
         save_calendar_to_csv(df, output_csv)
