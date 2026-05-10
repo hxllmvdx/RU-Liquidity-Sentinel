@@ -73,6 +73,13 @@ class RuoniaParser:
             driver.execute_script("arguments[0].click();",download_btn)
             time.sleep(3)
 
+            files = [f for f in os.listdir(download_dir) if f.endswith(".xlsx")]
+
+            if files:
+                old_file = os.path.join(download_dir, files[0])
+                new_filename = "ruonia.xlsx"
+                new_file = os.path.join(download_dir, new_filename)
+                os.rename(old_file, new_file)
         finally:
             driver.quit()
 
