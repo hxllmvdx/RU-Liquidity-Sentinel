@@ -2,14 +2,16 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 import os
 import urllib.request
-class TaxCalendarParser():
+class TaxCalendarParser1:
     def __init__(self):
         self.download_path = os.path.join(os.getcwd(), 'data', 'raw', 'nalog')
         self.source_name = "nalog_tax_calendar"
 
 
     def parse(self):
-        driver = webdriver.Chrome()
+        chrome_options = Options()
+        chrome_options.add_argument("--headless=new")
+        driver = webdriver.Chrome(options=chrome_options)
         url = "https://www.nalog.gov.ru/opendata/7707329152-kalendar/?ysclid=moy272phce597468424"
         driver.get(url)
         links = driver.find_elements(By.TAG_NAME, "a")
@@ -21,5 +23,5 @@ class TaxCalendarParser():
                 urllib.request.urlretrieve(href, filepath)
         driver.quit()
 
-parser = TaxCalendarParser()
+parser = TaxCalendarParser1()
 parser.parse()
