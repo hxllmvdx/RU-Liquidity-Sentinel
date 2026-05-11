@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 import logging
 import re
 
 from bs4 import BeautifulSoup
 
+from common.db_models import RawFetchResult, RawObservation, SourceStatus
 from ingestion.base_parser import BaseParser, ParserRunResult
 from ingestion.cbr.client import CbrClient
 from ingestion.cbr.exceptions import CbrEmptyResultError, CbrParserError
@@ -23,13 +24,47 @@ class KeyRateParser(BaseParser):
     source_name = "cbr_keyrate"
     source_code = "CBR_KEYRATE"
     path = "/hd_base/keyrate/"
+    source_url = "https://www.cbr.ru/hd_base/keyrate/"
 
-    def __init__(self, client: CbrClient | None = None) -> None:
+    def __init__(self, client: CbrClient | None = None, db=None) -> None:
+        super().__init__(db=db)
         self.client = client or CbrClient()
 
     def fetch(self, date_from: date, date_to: date) -> list[CbrKeyRateRecord]:
         html = self.client.get(self.path, date_from, date_to)
         return self.parse_html(html)
+
+    def fetch_latest(self) -> RawFetchResult:
+        date_to = self.utc_now().date()
+        date_from = date_to - timedelta(days=14)
+        url = self.client.build_url(self.path, date_from, date_to)
+        html = self.client.get(self.path, date_from, date_to)
+        return RawFetchResult(
+            source_code=self.source_code,
+            url=url,
+            fetched_at=self.utc_now(),
+            status=SourceStatus.SUCCESS,
+            content=html,
+            metadata={"date_from": date_from.isoformat(), "date_to": date_to.isoformat()},
+        )
+
+    def parse_latest(self, raw: RawFetchResult) -> list[RawObservation]:
+        records = self.parse_html(str(raw.content))
+        if not records:
+            return []
+        latest_date = max(record.observation_date for record in records)
+        latest_records = [record for record in records if record.observation_date == latest_date]
+        return [
+            RawObservation(
+                source_code=self.source_code,
+                observation_date=record.observation_date,
+                metric_name="key_rate",
+                metric_value=record.rate_percent,
+                unit=record.unit,
+                raw_payload=record.raw,
+            )
+            for record in latest_records
+        ]
 
     def discover_available_range(self) -> tuple[date, date]:
         html = self.client.get(self.path, date(2013, 9, 17), self.utc_now().date())
@@ -111,13 +146,24 @@ class KeyRateParser(BaseParser):
     ) -> ParserRunResult:
         records = self.fetch(date_from, date_to)
         output_path = self.save(records, date_from, date_to, out_dir=out_dir, overwrite=overwrite)
+        latest_date = max((record.observation_date for record in records), default=None)
         return ParserRunResult(
             source_code=self.source_code,
+            status=SourceStatus.SUCCESS,
             record_count=len(records),
             output_path=output_path,
             requested_from=date_from,
             requested_to=date_to,
+            latest_observation_date=latest_date,
         )
+
+    def run_latest(self, out_dir: Path | None = None) -> ParserRunResult:
+        date_to = self.utc_now().date()
+        date_from = date_to - timedelta(days=14)
+        return self.run(date_from=date_from, date_to=date_to, out_dir=out_dir)
+
+    def run_historical(self, date_from: date, date_to: date, out_dir: Path | None = None) -> ParserRunResult:
+        return self.run(date_from=date_from, date_to=date_to, out_dir=out_dir)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
