@@ -1,8 +1,8 @@
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-
-from pathlib import Path
 
 
 class RepoAuctionModule:
@@ -10,7 +10,9 @@ class RepoAuctionModule:
         self.demand_threshold = demand_threshold
 
     @staticmethod
-    def rolling_mad_score(series: pd.Series, window: str = "1095D") -> pd.Series:
+    def rolling_mad_score(
+        series: pd.Series, window: str = "1095D"
+    ) -> pd.Series:
         def _mad_zscore(x):
             x = pd.Series(x).dropna()
             if len(x) == 0:
@@ -26,7 +28,9 @@ class RepoAuctionModule:
 
             return (last_value - median) / (1.4826 * mad)
 
-        return series.rolling(window=window, min_periods=5).apply(_mad_zscore, raw=False)
+        return series.rolling(window=window, min_periods=5).apply(
+            _mad_zscore, raw=False
+        )
 
     def preprocess(self, df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         repo = df.copy()
@@ -68,34 +72,29 @@ class RepoAuctionModule:
         for col in numeric_cols:
             repo[col] = pd.to_numeric(repo[col], errors="coerce")
 
-        rate_cols = [
-            "cutoff_rate_percent",
-            "weighted_average_rate_percent",
-        ]
+        rate_cols = ["cutoff_rate_percent", "weighted_average_rate_percent"]
 
         for col in rate_cols:
             repo[col] = repo[col].interpolate(method="linear", limit=1)
 
         if "rate_spread_to_key_rate_percent" not in repo.columns:
-            repo["rate_spread_to_key_rate_percent"] = repo["cutoff_rate_percent"] - repo["key_rate_percent"]
+            repo["rate_spread_to_key_rate_percent"] = (
+                repo["cutoff_rate_percent"] - repo["key_rate_percent"]
+            )
 
-        repo["Flag_Demand"] = (repo["cover_ratio"] > self.demand_threshold).astype(int)
+        repo["Flag_Demand"] = (
+            repo["cover_ratio"] > self.demand_threshold
+        ).astype(int)
         repo["MAD_score_cover"] = self.rolling_mad_score(repo["cover_ratio"])
-        repo["MAD_score_rate_spread"] = self.rolling_mad_score(repo["rate_spread_to_key_rate_percent"])
+        repo["MAD_score_rate_spread"] = self.rolling_mad_score(
+            repo["rate_spread_to_key_rate_percent"]
+        )
         signals = repo[
-            [
-                "MAD_score_cover",
-                "MAD_score_rate_spread",
-                "Flag_Demand",
-            ]
+            ["MAD_score_cover", "MAD_score_rate_spread", "Flag_Demand"]
         ].copy()
 
         dashboard = repo[
-            [
-                "cover_ratio",
-                "cutoff_rate_percent",
-                "key_rate_percent",
-            ]
+            ["cover_ratio", "cutoff_rate_percent", "key_rate_percent"]
         ].copy()
 
         return signals, dashboard
@@ -121,9 +120,6 @@ print(signals_df.head())
 
 processed_path = BASE_DIR / "data" / "processed"
 
-processed_path.mkdir(
-    parents=True,
-    exist_ok=True,
-)
+processed_path.mkdir(parents=True, exist_ok=True)
 
 signals_df.to_csv(processed_path / "repo_module_signals.csv")
