@@ -16,8 +16,8 @@ from ingestion.cbr.utils import clean_text, parse_russian_date, parse_russian_fl
 class RuoniaParser(BaseParser):
     source_name = "cbr_ruonia"
     source_code = "CBR_RUONIA"
-    source_url = "https://www.cbr.ru/hd_base/ruonia/"
-    path = "/hd_base/ruonia/"
+    source_url = "https://www.cbr.ru/hd_base/ruonia/dynamics/"
+    path = "/hd_base/ruonia/dynamics/"
 
     def __init__(self, client: CbrClient | None = None, db=None) -> None:
         super().__init__(db=db)
@@ -32,27 +32,66 @@ class RuoniaParser(BaseParser):
         table = soup.select_one("table.data")
         if table is None:
             raise ValueError("ruonia table not found")
+        rows = table.select("tr")
         records: list[CbrKeyRateRecord] = []
         loaded_at = self.utc_now()
-        for row in table.select("tr")[1:]:
-            cells = row.find_all(["td", "th"])
-            if len(cells) < 2:
-                continue
-            raw_date = clean_text(cells[0].get_text(" ", strip=True))
-            raw_value = clean_text(cells[1].get_text(" ", strip=True))
-            observation_date = parse_russian_date(raw_date)
-            if observation_date is None:
-                continue
-            records.append(
-                CbrKeyRateRecord(
-                    source_code=self.source_code,
-                    observation_date=observation_date,
-                    rate_percent=parse_russian_float(raw_value),
-                    unit="percent_per_annum",
-                    raw={"date": raw_date, "value": raw_value},
-                    loaded_at=loaded_at,
+
+        # Current CBR RUONIA page is a transposed table:
+        # first row contains dates across columns, second row contains rates.
+        if rows:
+            header_cells = rows[0].find_all(["td", "th"])
+            if len(header_cells) >= 2:
+                dates = [
+                    parse_russian_date(clean_text(cell.get_text(" ", strip=True)))
+                    for cell in header_cells[1:]
+                ]
+                rate_row = None
+                for row in rows[1:]:
+                    cells = row.find_all(["td", "th"])
+                    if not cells:
+                        continue
+                    label = clean_text(cells[0].get_text(" ", strip=True)).lower()
+                    if "ставка ruonia" in label:
+                        rate_row = cells
+                        break
+
+                if rate_row is not None:
+                    for observation_date, value_cell in zip(dates, rate_row[1:]):
+                        if observation_date is None:
+                            continue
+                        raw_value = clean_text(value_cell.get_text(" ", strip=True))
+                        records.append(
+                            CbrKeyRateRecord(
+                                source_code=self.source_code,
+                                observation_date=observation_date,
+                                rate_percent=parse_russian_float(raw_value),
+                                unit="percent_per_annum",
+                                raw={"date": observation_date.isoformat(), "value": raw_value},
+                                loaded_at=loaded_at,
+                            )
+                        )
+
+        # Fallback for the older row-based layout.
+        if not records:
+            for row in rows[1:]:
+                cells = row.find_all(["td", "th"])
+                if len(cells) < 2:
+                    continue
+                raw_date = clean_text(cells[0].get_text(" ", strip=True))
+                raw_value = clean_text(cells[1].get_text(" ", strip=True))
+                observation_date = parse_russian_date(raw_date)
+                if observation_date is None:
+                    continue
+                records.append(
+                    CbrKeyRateRecord(
+                        source_code=self.source_code,
+                        observation_date=observation_date,
+                        rate_percent=parse_russian_float(raw_value),
+                        unit="percent_per_annum",
+                        raw={"date": raw_date, "value": raw_value},
+                        loaded_at=loaded_at,
+                    )
                 )
-            )
         if not records:
             raise ValueError("ruonia parser produced no records")
         return records

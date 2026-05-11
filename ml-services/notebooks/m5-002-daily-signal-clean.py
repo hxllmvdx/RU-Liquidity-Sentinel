@@ -27,7 +27,7 @@ import pandas as pd
 # -----------------------------------------------------------------------------
 MODULE_ID = "M5_TREASURY"
 
-PROCESSED_DIR = Path("data/processed")
+PROCESSED_DIR = Path("../data/processed")
 FEATURES_INPUT_PATH = PROCESSED_DIR / "m5_treasury_daily_features.csv"
 SIGNALS_OUTPUT_PATH = PROCESSED_DIR / "m5_treasury_daily_signals.csv"
 DASHBOARD_OUTPUT_PATH = PROCESSED_DIR / "m5_treasury_dashboard.csv"

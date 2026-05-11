@@ -42,6 +42,7 @@ for candidate in [
 
 MAIN_TERM_DAYS = 7
 DEMAND_THRESHOLD = 2.0
+START_DATE = pd.Timestamp("2021-01-01")
 
 # %%
 # Column normalization helpers
@@ -156,6 +157,9 @@ events["auction_date"] = pd.to_datetime(
     events["auction_date"], errors="coerce"
 ).dt.normalize()
 events = events.dropna(subset=["auction_date"]).copy()
+
+# Keep only data from 2021-01-01 onward.
+events = events.loc[events["auction_date"] >= START_DATE].copy()
 
 for col in [
     "term_days",

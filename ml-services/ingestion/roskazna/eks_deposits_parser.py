@@ -478,7 +478,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--from", dest="date_from")
     parser.add_argument("--to", dest="date_to")
-    parser.add_argument("--out-dir", dest="out_dir", default="data/raw")
+    parser.add_argument("--out-dir", dest="out_dir", default="../data/raw")
     parser.add_argument("--use-cache-only", action="store_true")
     args = parser.parse_args()
     instance = EksDepositsParser()

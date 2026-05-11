@@ -10,18 +10,18 @@
 # %%
 from __future__ import annotations
 
-from pathlib import Path
 import warnings
+from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # %%
 # Config
-PROCESSED_DIR = Path("../data/processed")
+PROCESSED_DIR = Path("../../data/processed")
 FEATURES_PATH = PROCESSED_DIR / "repo_module_daily_features.csv"
 SIGNALS_OUTPUT_PATH = PROCESSED_DIR / "repo_module_daily_signals.csv"
 DASHBOARD_OUTPUT_PATH = PROCESSED_DIR / "repo_module_dashboard.csv"
@@ -41,7 +41,9 @@ for candidate in [
         SIGNALS_OUTPUT_PATH = PROCESSED_DIR / "repo_module_daily_signals.csv"
         DASHBOARD_OUTPUT_PATH = PROCESSED_DIR / "repo_module_dashboard.csv"
         SUMMARY_OUTPUT_PATH = PROCESSED_DIR / "repo_m2_signal_summary.csv"
-        COVER_RATE_CHART_PATH = PROCESSED_DIR / "repo_m2_cover_ratio_rate_dashboard.png"
+        COVER_RATE_CHART_PATH = (
+            PROCESSED_DIR / "repo_m2_cover_ratio_rate_dashboard.png"
+        )
         MAD_CHART_PATH = PROCESSED_DIR / "repo_m2_mad_scores_dashboard.png"
         VOLUME_CHART_PATH = PROCESSED_DIR / "repo_m2_volume_dashboard.png"
 
@@ -49,17 +51,16 @@ MODULE_ID = "M2_REPO"
 MAD_WINDOW_DAYS = 1095  # approx. 3 years
 MAD_MIN_OBSERVATIONS = 20
 EXPANDING_MIN_OBSERVATIONS = 10
-MAD_PLOT_CLIP_ABS = 10.0  # clipping is used only for charts, never for exported dataset
+MAD_PLOT_CLIP_ABS = (
+    10.0  # clipping is used only for charts, never for exported dataset
+)
 DEMAND_THRESHOLD = 2.0
 MAD_ALERT_ABS_THRESHOLD = 2.0
-DENOMINATOR_FLOORS = {
-    "cover": 0.05,
-    "rate_spread": 0.05,
-    "volume": 1.0,
-}
+DENOMINATOR_FLOORS = {"cover": 0.05, "rate_spread": 0.05, "volume": 1.0}
 
 # %%
 # Helpers
+
 
 def _median_abs_deviation(values: pd.Series) -> float:
     x = pd.to_numeric(values, errors="coerce").dropna()
@@ -85,9 +86,15 @@ def historical_mad_scores(
     expanding history is used. If history is still insufficient, the signal is neutral 0.
     """
     work = df[[date_col, value_col]].copy()
-    work[date_col] = pd.to_datetime(work[date_col], errors="coerce").dt.normalize()
+    work[date_col] = pd.to_datetime(
+        work[date_col], errors="coerce"
+    ).dt.normalize()
     work[value_col] = pd.to_numeric(work[value_col], errors="coerce")
-    work = work.dropna(subset=[date_col]).sort_values(date_col).reset_index(drop=True)
+    work = (
+        work.dropna(subset=[date_col])
+        .sort_values(date_col)
+        .reset_index(drop=True)
+    )
 
     scores = []
     qualities = []
@@ -105,7 +112,9 @@ def historical_mad_scores(
             continue
 
         history_start = current_date - pd.Timedelta(days=window_days)
-        rolling_hist = work[(work[date_col] < current_date) & (work[date_col] >= history_start)][value_col].dropna()
+        rolling_hist = work[
+            (work[date_col] < current_date) & (work[date_col] >= history_start)
+        ][value_col].dropna()
         expanding_hist = work[work[date_col] < current_date][value_col].dropna()
 
         if len(rolling_hist) >= min_observations:
@@ -123,7 +132,9 @@ def historical_mad_scores(
 
         median = float(hist.median())
         mad = _median_abs_deviation(hist)
-        denominator = max(float(mad) if pd.notna(mad) else 0.0, denominator_floor)
+        denominator = max(
+            float(mad) if pd.notna(mad) else 0.0, denominator_floor
+        )
         score = (float(current_value) - median) / denominator
         if invert:
             score = -score
@@ -142,8 +153,12 @@ def historical_mad_scores(
     return out
 
 
-
-def _auction_plot_series(df: pd.DataFrame, value_col: str, output_col: str, clip_upper: float | None = None) -> pd.DataFrame:
+def _auction_plot_series(
+    df: pd.DataFrame,
+    value_col: str,
+    output_col: str,
+    clip_upper: float | None = None,
+) -> pd.DataFrame:
     """Return copy where no-auction days are NaN for charts only.
 
     The exported daily tables still keep no-auction rows as neutral zeros.
@@ -151,9 +166,13 @@ def _auction_plot_series(df: pd.DataFrame, value_col: str, output_col: str, clip
     plot turns into unreadable vertical spikes.
     """
     plot_df = df.sort_values("date").copy()
-    plot_df[output_col] = np.where(plot_df["has_auction"].astype(bool), plot_df[value_col], np.nan)
+    plot_df[output_col] = np.where(
+        plot_df["has_auction"].astype(bool), plot_df[value_col], np.nan
+    )
     if clip_upper is not None:
-        plot_df[output_col] = pd.to_numeric(plot_df[output_col], errors="coerce").clip(upper=clip_upper)
+        plot_df[output_col] = pd.to_numeric(
+            plot_df[output_col], errors="coerce"
+        ).clip(upper=clip_upper)
     return plot_df
 
 
@@ -177,12 +196,19 @@ def plot_cover_ratio(df: pd.DataFrame, output_path: Path) -> None:
         linewidth=1.1,
         label="Cover ratio, auction days only, clipped at 10",
     )
-    ax.axhline(DEMAND_THRESHOLD, linestyle="--", linewidth=1, label="Demand threshold > 2.0")
+    ax.axhline(
+        DEMAND_THRESHOLD,
+        linestyle="--",
+        linewidth=1,
+        label="Demand threshold > 2.0",
+    )
 
     flags = plot_df[plot_df["Flag_Demand"].astype(bool)]
     flags = flags.dropna(subset=["cover_ratio_plot"])
     if not flags.empty:
-        ax.scatter(flags["date"], flags["cover_ratio_plot"], s=18, label="Flag_Demand")
+        ax.scatter(
+            flags["date"], flags["cover_ratio_plot"], s=18, label="Flag_Demand"
+        )
 
     ax.set_title("M2 Repo: cover ratio on auction days")
     ax.set_xlabel("Date")
@@ -232,16 +258,44 @@ def plot_mad_scores(df: pd.DataFrame, output_path: Path) -> None:
     clipped to keep the visualization readable.
     """
     plot_df = df.sort_values("date").copy()
-    plot_df["MAD_score_cover_plot"] = plot_df["MAD_score_cover"].clip(-MAD_PLOT_CLIP_ABS, MAD_PLOT_CLIP_ABS)
-    plot_df["MAD_score_rate_spread_plot"] = plot_df["MAD_score_rate_spread"].clip(-MAD_PLOT_CLIP_ABS, MAD_PLOT_CLIP_ABS)
-    plot_df["MAD_score_cover_30d"] = plot_df["MAD_score_cover_plot"].rolling(30, min_periods=1).mean()
-    plot_df["MAD_score_rate_spread_30d"] = plot_df["MAD_score_rate_spread_plot"].rolling(30, min_periods=1).mean()
+    plot_df["MAD_score_cover_plot"] = plot_df["MAD_score_cover"].clip(
+        -MAD_PLOT_CLIP_ABS, MAD_PLOT_CLIP_ABS
+    )
+    plot_df["MAD_score_rate_spread_plot"] = plot_df[
+        "MAD_score_rate_spread"
+    ].clip(-MAD_PLOT_CLIP_ABS, MAD_PLOT_CLIP_ABS)
+    plot_df["MAD_score_cover_30d"] = (
+        plot_df["MAD_score_cover_plot"].rolling(30, min_periods=1).mean()
+    )
+    plot_df["MAD_score_rate_spread_30d"] = (
+        plot_df["MAD_score_rate_spread_plot"].rolling(30, min_periods=1).mean()
+    )
 
     fig, ax = plt.subplots(figsize=(15, 5))
-    ax.plot(plot_df["date"], plot_df["MAD_score_cover_30d"], linewidth=1.8, label="MAD cover, 30d mean")
-    ax.plot(plot_df["date"], plot_df["MAD_score_rate_spread_30d"], linewidth=1.8, label="MAD rate spread, 30d mean")
-    ax.axhline(MAD_ALERT_ABS_THRESHOLD, linestyle="--", linewidth=1, label="+2 MAD alert")
-    ax.axhline(-MAD_ALERT_ABS_THRESHOLD, linestyle="--", linewidth=1, label="-2 MAD alert")
+    ax.plot(
+        plot_df["date"],
+        plot_df["MAD_score_cover_30d"],
+        linewidth=1.8,
+        label="MAD cover, 30d mean",
+    )
+    ax.plot(
+        plot_df["date"],
+        plot_df["MAD_score_rate_spread_30d"],
+        linewidth=1.8,
+        label="MAD rate spread, 30d mean",
+    )
+    ax.axhline(
+        MAD_ALERT_ABS_THRESHOLD,
+        linestyle="--",
+        linewidth=1,
+        label="+2 MAD alert",
+    )
+    ax.axhline(
+        -MAD_ALERT_ABS_THRESHOLD,
+        linestyle="--",
+        linewidth=1,
+        label="-2 MAD alert",
+    )
 
     ax.set_title("M2 Repo: smoothed MAD stress signals")
     ax.set_xlabel("Date")
@@ -265,7 +319,12 @@ def plot_repo_volume(df: pd.DataFrame, output_path: Path) -> None:
     )
 
     fig, ax = plt.subplots(figsize=(15, 5))
-    ax.bar(weekly_volume["date"], weekly_volume["total_auction_volume_bln_rub"], width=5, label="Weekly auction volume")
+    ax.bar(
+        weekly_volume["date"],
+        weekly_volume["total_auction_volume_bln_rub"],
+        width=5,
+        label="Weekly auction volume",
+    )
 
     ax.set_title("M2 Repo: weekly auction volume")
     ax.set_xlabel("Date")
@@ -287,28 +346,39 @@ def build_signal_table(df: pd.DataFrame) -> pd.DataFrame:
     Output contains only final signals used by the M2 module. Raw features and
     diagnostics stay in the separate dashboard table.
     """
-    out = df[[
-        "date",
+    out = df[
+        [
+            "date",
+            "MAD_score_cover",
+            "MAD_score_rate_spread",
+            "MAD_score_repo_volume",
+            "Flag_Demand",
+        ]
+    ].copy()
+
+    out.insert(1, "module_id", MODULE_ID)
+    out["date"] = pd.to_datetime(out["date"], errors="coerce").dt.date.astype(
+        str
+    )
+
+    for col in [
         "MAD_score_cover",
         "MAD_score_rate_spread",
         "MAD_score_repo_volume",
-        "Flag_Demand",
-    ]].copy()
-
-    out.insert(1, "module_id", MODULE_ID)
-    out["date"] = pd.to_datetime(out["date"], errors="coerce").dt.date.astype(str)
-
-    for col in ["MAD_score_cover", "MAD_score_rate_spread", "MAD_score_repo_volume"]:
+    ]:
         out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
 
     out["Flag_Demand"] = out["Flag_Demand"].fillna(False).astype(bool)
 
     return out
 
+
 # %%
 # Load daily features
 if not FEATURES_PATH.exists():
-    raise FileNotFoundError(f"Daily features not found: {FEATURES_PATH}. Run m2-001-daily-feature-panel.py first.")
+    raise FileNotFoundError(
+        f"Daily features not found: {FEATURES_PATH}. Run m2-001-daily-feature-panel.py first."
+    )
 
 daily = pd.read_csv(FEATURES_PATH)
 daily["date"] = pd.to_datetime(daily["date"], errors="coerce").dt.normalize()
@@ -317,7 +387,9 @@ daily = daily.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
 for col in daily.columns:
     if col != "date" and col != "Flag_Demand":
         daily[col] = pd.to_numeric(daily[col], errors="coerce").fillna(0.0)
-daily["Flag_Demand"] = daily.get("Flag_Demand", False).fillna(False).astype(bool)
+daily["Flag_Demand"] = (
+    daily.get("Flag_Demand", False).fillna(False).astype(bool)
+)
 
 print("Loaded daily features:", FEATURES_PATH)
 print("Shape:", daily.shape)
@@ -342,10 +414,15 @@ daily["volume_signal_raw"] = daily["total_auction_volume_bln_rub"]
 
 # No-auction days must remain neutral.
 no_auction = daily["has_auction"].eq(0)
-daily.loc[no_auction, ["cover_signal_raw", "rate_spread_signal_raw", "volume_signal_raw"]] = 0.0
+daily.loc[
+    no_auction,
+    ["cover_signal_raw", "rate_spread_signal_raw", "volume_signal_raw"],
+] = 0.0
 
 # Flag only when auction happened.
-daily["Flag_Demand"] = daily["has_auction"].eq(1) & daily["cover_signal_raw"].gt(DEMAND_THRESHOLD)
+daily["Flag_Demand"] = daily["has_auction"].eq(1) & daily[
+    "cover_signal_raw"
+].gt(DEMAND_THRESHOLD)
 
 # %%
 # MAD normalization on auction days only, then merge back to daily panel
@@ -371,17 +448,27 @@ volume_mad = historical_mad_scores(
 )
 
 daily = daily.merge(
-    cover_mad[["date", "cover_signal_raw_mad_score", "cover_signal_raw_mad_quality"]],
+    cover_mad[
+        ["date", "cover_signal_raw_mad_score", "cover_signal_raw_mad_quality"]
+    ],
     on="date",
     how="left",
 )
 daily = daily.merge(
-    rate_mad[["date", "rate_spread_signal_raw_mad_score", "rate_spread_signal_raw_mad_quality"]],
+    rate_mad[
+        [
+            "date",
+            "rate_spread_signal_raw_mad_score",
+            "rate_spread_signal_raw_mad_quality",
+        ]
+    ],
     on="date",
     how="left",
 )
 daily = daily.merge(
-    volume_mad[["date", "volume_signal_raw_mad_score", "volume_signal_raw_mad_quality"]],
+    volume_mad[
+        ["date", "volume_signal_raw_mad_score", "volume_signal_raw_mad_quality"]
+    ],
     on="date",
     how="left",
 )
@@ -389,16 +476,36 @@ daily = daily.merge(
 # Final exported signals: no-auction/missing history = neutral zero.
 # Important: do NOT clip exported MAD values. Clipping is allowed only for charts.
 daily["MAD_score_cover"] = daily["cover_signal_raw_mad_score"].fillna(0.0)
-daily["MAD_score_rate_spread"] = daily["rate_spread_signal_raw_mad_score"].fillna(0.0)
-daily["MAD_score_repo_volume"] = daily["volume_signal_raw_mad_score"].fillna(0.0)
+daily["MAD_score_rate_spread"] = daily[
+    "rate_spread_signal_raw_mad_score"
+].fillna(0.0)
+daily["MAD_score_repo_volume"] = daily["volume_signal_raw_mad_score"].fillna(
+    0.0
+)
 
-daily["MAD_score_cover_quality"] = daily["cover_signal_raw_mad_quality"].fillna("no_auction_neutral_zero")
-daily["MAD_score_rate_spread_quality"] = daily["rate_spread_signal_raw_mad_quality"].fillna("no_auction_neutral_zero")
-daily["MAD_score_repo_volume_quality"] = daily["volume_signal_raw_mad_quality"].fillna("no_auction_neutral_zero")
+daily["MAD_score_cover_quality"] = daily["cover_signal_raw_mad_quality"].fillna(
+    "no_auction_neutral_zero"
+)
+daily["MAD_score_rate_spread_quality"] = daily[
+    "rate_spread_signal_raw_mad_quality"
+].fillna("no_auction_neutral_zero")
+daily["MAD_score_repo_volume_quality"] = daily[
+    "volume_signal_raw_mad_quality"
+].fillna("no_auction_neutral_zero")
 
 # Enforce neutral no-auction rows.
-daily.loc[no_auction, ["MAD_score_cover", "MAD_score_rate_spread", "MAD_score_repo_volume"]] = 0.0
-daily.loc[no_auction, ["MAD_score_cover_quality", "MAD_score_rate_spread_quality", "MAD_score_repo_volume_quality"]] = "no_auction_neutral_zero"
+daily.loc[
+    no_auction,
+    ["MAD_score_cover", "MAD_score_rate_spread", "MAD_score_repo_volume"],
+] = 0.0
+daily.loc[
+    no_auction,
+    [
+        "MAD_score_cover_quality",
+        "MAD_score_rate_spread_quality",
+        "MAD_score_repo_volume_quality",
+    ],
+] = "no_auction_neutral_zero"
 
 # %%
 # Diagnostics
@@ -406,11 +513,37 @@ summary = pd.DataFrame(
     [
         {"metric": "rows", "value": len(daily)},
         {"metric": "auction_days", "value": int(daily["has_auction"].sum())},
-        {"metric": "no_auction_days", "value": int((daily["has_auction"] == 0).sum())},
-        {"metric": "Flag_Demand_days", "value": int(daily["Flag_Demand"].sum())},
-        {"metric": "MAD_score_cover_nulls", "value": int(daily["MAD_score_cover"].isna().sum())},
-        {"metric": "MAD_score_rate_spread_nulls", "value": int(daily["MAD_score_rate_spread"].isna().sum())},
-        {"metric": "exported_mad_max_abs_unclipped", "value": float(daily[["MAD_score_cover", "MAD_score_rate_spread", "MAD_score_repo_volume"]].abs().max().max())},
+        {
+            "metric": "no_auction_days",
+            "value": int((daily["has_auction"] == 0).sum()),
+        },
+        {
+            "metric": "Flag_Demand_days",
+            "value": int(daily["Flag_Demand"].sum()),
+        },
+        {
+            "metric": "MAD_score_cover_nulls",
+            "value": int(daily["MAD_score_cover"].isna().sum()),
+        },
+        {
+            "metric": "MAD_score_rate_spread_nulls",
+            "value": int(daily["MAD_score_rate_spread"].isna().sum()),
+        },
+        {
+            "metric": "exported_mad_max_abs_unclipped",
+            "value": float(
+                daily[
+                    [
+                        "MAD_score_cover",
+                        "MAD_score_rate_spread",
+                        "MAD_score_repo_volume",
+                    ]
+                ]
+                .abs()
+                .max()
+                .max()
+            ),
+        },
         {"metric": "chart_mad_clip_abs", "value": MAD_PLOT_CLIP_ABS},
     ]
 )
@@ -435,7 +568,9 @@ expected_signal_cols = [
 ]
 signals = signals[expected_signal_cols].copy()
 if list(signals.columns) != expected_signal_cols:
-    raise AssertionError("Signal output must contain only wide signal table columns")
+    raise AssertionError(
+        "Signal output must contain only wide signal table columns"
+    )
 if signals["date"].duplicated().any():
     raise AssertionError("Signal output must contain exactly one row per date")
 

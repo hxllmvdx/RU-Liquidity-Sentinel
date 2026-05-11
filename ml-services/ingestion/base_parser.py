@@ -42,7 +42,7 @@ class BaseParser(ABC):
 
     @property
     def default_out_dir(self) -> Path:
-        return self.repo_root.parent / "data" / "raw"
+        return self.repo_root / "data" / "raw"
 
     @staticmethod
     def utc_now() -> datetime:

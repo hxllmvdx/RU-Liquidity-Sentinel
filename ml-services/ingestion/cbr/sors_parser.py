@@ -187,7 +187,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--from", dest="date_from")
     parser.add_argument("--to", dest="date_to")
-    parser.add_argument("--out-dir", dest="out_dir", default="data/raw")
+    parser.add_argument("--out-dir", dest="out_dir", default="../data/raw")
     args = parser.parse_args()
     instance = SorsParser()
     date_from = date.fromisoformat(args.date_from) if args.date_from else DEFAULT_MIN_DATE

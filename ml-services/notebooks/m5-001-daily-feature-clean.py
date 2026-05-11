@@ -13,8 +13,8 @@ Outputs:
 
 from __future__ import annotations
 
-from pathlib import Path
 import json
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,11 +25,16 @@ import pandas as pd
 # Imports and config
 # -----------------------------------------------------------------------------
 MODULE_ID = "M5_TREASURY"
+START_DATE = pd.Timestamp("2021-01-01")
 
-RAW_OR_PROCESSED_INPUT_PATH = Path("data/raw/treasury/m5_treasury/m5_treasury_features_2021-01-01_2026-05-10.csv")
+RAW_OR_PROCESSED_INPUT_PATH = Path(
+    "data/raw/treasury/m5_treasury/m5_treasury_features_2021-01-01_2026-05-10.csv"
+)
 FALLBACK_INPUT_PATHS = [
     Path("data/processed/treasury/m5_treasury/m5_treasury_feature_clean.csv"),
-    Path("data/processed/treasury/m5_treasury/m5_treasury_features_2021-01-01_2026-05-10.csv"),
+    Path(
+        "data/processed/treasury/m5_treasury/m5_treasury_features_2021-01-01_2026-05-10.csv"
+    ),
     Path("/mnt/data/m5_treasury_features_2021-01-01_2026-05-10.csv"),
 ]
 
@@ -54,12 +59,17 @@ LEVEL_COLUMNS_CANDIDATES = [
 EVENT_COLUMNS_CANDIDATES = ["roskazna_deposit_placements_bln_rub"]
 TEXT_COLUMNS = {"source_code", "raw_refs", "loaded_at", "module_id"}
 
+
 # %%
 # -----------------------------------------------------------------------------
 # Path helpers
 # -----------------------------------------------------------------------------
 def candidate_roots() -> list[Path]:
-    roots = [Path.cwd().resolve(), *Path.cwd().resolve().parents, Path("/mnt/data")]
+    roots = [
+        Path.cwd().resolve(),
+        *Path.cwd().resolve().parents,
+        Path("/mnt/data"),
+    ]
     result: list[Path] = []
     seen: set[Path] = set()
     for root in roots:
@@ -73,15 +83,36 @@ def resolve_project_paths() -> dict[str, Path]:
     input_candidates: list[Path] = []
     for root in candidate_roots():
         input_candidates.append(root / RAW_OR_PROCESSED_INPUT_PATH)
-        input_candidates.extend(root / path for path in FALLBACK_INPUT_PATHS if not path.is_absolute())
-    input_candidates.extend(path for path in FALLBACK_INPUT_PATHS if path.is_absolute())
+        input_candidates.extend(
+            root / path
+            for path in FALLBACK_INPUT_PATHS
+            if not path.is_absolute()
+        )
+    input_candidates.extend(
+        path for path in FALLBACK_INPUT_PATHS if path.is_absolute()
+    )
 
-    input_path = next((path for path in input_candidates if path.exists()), None)
+    input_path = next(
+        (path for path in input_candidates if path.exists()), None
+    )
     if input_path is None:
-        raise FileNotFoundError("M5 input CSV not found. Searched:\n" + "\n".join(map(str, input_candidates)))
+        raise FileNotFoundError(
+            "M5 input CSV not found. Searched:\n"
+            + "\n".join(map(str, input_candidates))
+        )
 
-    root = next((root for root in candidate_roots() if str(input_path).startswith(str(root))), Path.cwd().resolve())
-    if str(input_path).startswith("/mnt/data") and not (Path.cwd() / "data").exists():
+    root = next(
+        (
+            root
+            for root in candidate_roots()
+            if str(input_path).startswith(str(root))
+        ),
+        Path.cwd().resolve(),
+    )
+    if (
+        str(input_path).startswith("/mnt/data")
+        and not (Path.cwd() / "data").exists()
+    ):
         root = Path("/mnt/data")
 
     processed_dir = root / PROCESSED_DIR
@@ -98,16 +129,21 @@ PATHS["processed_dir"].mkdir(parents=True, exist_ok=True)
 print("Input path:", PATHS["input"])
 print("Processed dir:", PATHS["processed_dir"])
 
+
 # %%
 # -----------------------------------------------------------------------------
 # Load data
 # -----------------------------------------------------------------------------
 def load_m5_csv(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
-    df = df.rename(columns={k: v for k, v in RENAME_MAPPING.items() if k in df.columns})
+    df = df.rename(
+        columns={k: v for k, v in RENAME_MAPPING.items() if k in df.columns}
+    )
 
     if "date" not in df.columns:
-        raise ValueError("Required date column is missing after rename mapping.")
+        raise ValueError(
+            "Required date column is missing after rename mapping."
+        )
 
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.dropna(subset=["date"]).copy()
@@ -121,6 +157,9 @@ def load_m5_csv(path: Path) -> pd.DataFrame:
 
 
 raw = load_m5_csv(PATHS["input"])
+
+raw = raw.loc[raw["date"] >= START_DATE].copy()
+
 print("Rows loaded:", len(raw))
 print("Columns:", list(raw.columns))
 print("Date range:", raw["date"].min(), "->", raw["date"].max())
@@ -143,6 +182,7 @@ if missing_event:
 print("Level columns:", level_columns)
 print("Event columns:", event_columns)
 
+
 # %%
 # -----------------------------------------------------------------------------
 # Aggregate duplicate dates if needed
@@ -164,7 +204,12 @@ def aggregate_duplicate_dates(df: pd.DataFrame) -> pd.DataFrame:
             agg[col] = "last"
         else:
             agg[col] = "last"
-    return df.groupby("date", as_index=False).agg(agg).sort_values("date").reset_index(drop=True)
+    return (
+        df.groupby("date", as_index=False)
+        .agg(agg)
+        .sort_values("date")
+        .reset_index(drop=True)
+    )
 
 
 raw_daily = aggregate_duplicate_dates(raw)
@@ -173,7 +218,13 @@ raw_daily = aggregate_duplicate_dates(raw)
 # -----------------------------------------------------------------------------
 # Build daily calendar
 # -----------------------------------------------------------------------------
-calendar = pd.DataFrame({"date": pd.date_range(raw_daily["date"].min(), raw_daily["date"].max(), freq="D")})
+calendar = pd.DataFrame(
+    {
+        "date": pd.date_range(
+            raw_daily["date"].min(), raw_daily["date"].max(), freq="D"
+        )
+    }
+)
 daily = calendar.merge(raw_daily, on="date", how="left")
 daily["module_id"] = MODULE_ID
 print("Daily calendar rows:", len(daily))
@@ -188,7 +239,9 @@ if level_columns:
     daily["has_cbr_update"] = daily[level_columns].notna().any(axis=1)
 
 if "roskazna_deposit_placements_bln_rub" in daily.columns:
-    daily["has_roskazna_event"] = daily["roskazna_deposit_placements_bln_rub"].fillna(0).gt(0)
+    daily["has_roskazna_event"] = (
+        daily["roskazna_deposit_placements_bln_rub"].fillna(0).gt(0)
+    )
 else:
     daily["has_roskazna_event"] = False
 
@@ -206,15 +259,22 @@ for col in ["has_cbr_update", "has_roskazna_event"]:
     daily[col] = daily[col].fillna(False).astype(bool)
 
 # Preserve optional source delta columns but do not use them as canonical daily deltas.
-for source_col in ["cbr_weekly_delta_bln_rub_source", "cbr_monthly_delta_bln_rub_source", "roskazna_weekly_delta_bln_rub_source"]:
+for source_col in [
+    "cbr_weekly_delta_bln_rub_source",
+    "cbr_monthly_delta_bln_rub_source",
+    "roskazna_weekly_delta_bln_rub_source",
+]:
     if source_col in daily.columns:
         daily[source_col] = pd.to_numeric(daily[source_col], errors="coerce")
+
 
 # %%
 # -----------------------------------------------------------------------------
 # days_since features
 # -----------------------------------------------------------------------------
-def add_days_since(df: pd.DataFrame, flag_col: str, last_date_col: str, days_col: str) -> pd.DataFrame:
+def add_days_since(
+    df: pd.DataFrame, flag_col: str, last_date_col: str, days_col: str
+) -> pd.DataFrame:
     df = df.copy()
     event_dates = df["date"].where(df[flag_col])
     df[last_date_col] = event_dates.ffill()
@@ -224,32 +284,57 @@ def add_days_since(df: pd.DataFrame, flag_col: str, last_date_col: str, days_col
     return df
 
 
-daily = add_days_since(daily, "has_cbr_update", "last_cbr_update_date", "days_since_cbr_update")
-daily = add_days_since(daily, "has_roskazna_event", "last_roskazna_event_date", "days_since_roskazna_event")
+daily = add_days_since(
+    daily, "has_cbr_update", "last_cbr_update_date", "days_since_cbr_update"
+)
+daily = add_days_since(
+    daily,
+    "has_roskazna_event",
+    "last_roskazna_event_date",
+    "days_since_roskazna_event",
+)
 
 # %%
 # -----------------------------------------------------------------------------
 # Rolling/event features
 # -----------------------------------------------------------------------------
 if "roskazna_deposit_placements_bln_rub" in daily.columns:
-    daily["roskazna_placement_7d_sum"] = daily["roskazna_deposit_placements_bln_rub"].rolling(7, min_periods=1).sum()
-    daily["roskazna_placement_30d_sum"] = daily["roskazna_deposit_placements_bln_rub"].rolling(30, min_periods=1).sum()
+    daily["roskazna_placement_7d_sum"] = (
+        daily["roskazna_deposit_placements_bln_rub"]
+        .rolling(7, min_periods=1)
+        .sum()
+    )
+    daily["roskazna_placement_30d_sum"] = (
+        daily["roskazna_deposit_placements_bln_rub"]
+        .rolling(30, min_periods=1)
+        .sum()
+    )
 else:
-    print("WARNING: cannot calculate Roskazna rolling sums; placement column is missing.")
-
-if "cbr_eks_balance_bln_rub" in daily.columns:
-    daily["cbr_weekly_delta_bln_rub"] = daily["cbr_eks_balance_bln_rub"] - daily["cbr_eks_balance_bln_rub"].shift(7)
-    daily["cbr_monthly_delta_bln_rub"] = daily["cbr_eks_balance_bln_rub"] - daily["cbr_eks_balance_bln_rub"].shift(30)
-else:
-    print("WARNING: cannot calculate CBR deltas; cbr_eks_balance_bln_rub is missing.")
-
-if "structural_liquidity_balance_bln_rub" in daily.columns:
-    daily["structural_liquidity_weekly_delta_bln_rub"] = (
-        daily["structural_liquidity_balance_bln_rub"] - daily["structural_liquidity_balance_bln_rub"].shift(7)
+    print(
+        "WARNING: cannot calculate Roskazna rolling sums; placement column is missing."
     )
 
+if "cbr_eks_balance_bln_rub" in daily.columns:
+    daily["cbr_weekly_delta_bln_rub"] = daily[
+        "cbr_eks_balance_bln_rub"
+    ] - daily["cbr_eks_balance_bln_rub"].shift(7)
+    daily["cbr_monthly_delta_bln_rub"] = daily[
+        "cbr_eks_balance_bln_rub"
+    ] - daily["cbr_eks_balance_bln_rub"].shift(30)
+else:
+    print(
+        "WARNING: cannot calculate CBR deltas; cbr_eks_balance_bln_rub is missing."
+    )
+
+if "structural_liquidity_balance_bln_rub" in daily.columns:
+    daily["structural_liquidity_weekly_delta_bln_rub"] = daily[
+        "structural_liquidity_balance_bln_rub"
+    ] - daily["structural_liquidity_balance_bln_rub"].shift(7)
+
 if "participant_banks_count" in daily.columns:
-    daily["participant_banks_count_change_30d"] = daily["participant_banks_count"] - daily["participant_banks_count"].shift(30)
+    daily["participant_banks_count_change_30d"] = daily[
+        "participant_banks_count"
+    ] - daily["participant_banks_count"].shift(30)
 
 # %%
 # -----------------------------------------------------------------------------
@@ -277,7 +362,8 @@ print("has_roskazna_event days:", int(daily["has_roskazna_event"].sum()))
 
 numeric_cols = daily.select_dtypes(include=[np.number]).columns.tolist()
 core_numeric = [
-    col for col in [
+    col
+    for col in [
         "cbr_eks_balance_bln_rub",
         "structural_liquidity_balance_bln_rub",
         "participant_banks_count",
@@ -287,12 +373,20 @@ core_numeric = [
         "cbr_weekly_delta_bln_rub",
         "cbr_monthly_delta_bln_rub",
         "budget_drain_bln_rub",
-    ] if col in numeric_cols
+    ]
+    if col in numeric_cols
 ]
 print("Numeric diagnostics:")
-print(daily[core_numeric].agg(["min", "max", "median"]).T if core_numeric else "No numeric diagnostics available")
+print(
+    daily[core_numeric].agg(["min", "max", "median"]).T
+    if core_numeric
+    else "No numeric diagnostics available"
+)
 for threshold in [300, 400, 500]:
-    print(f"Potential Flag_Budget_Drain days >= {threshold}:", int(daily["budget_drain_bln_rub"].fillna(0).ge(threshold).sum()))
+    print(
+        f"Potential Flag_Budget_Drain days >= {threshold}:",
+        int(daily["budget_drain_bln_rub"].fillna(0).ge(threshold).sum()),
+    )
 
 # %%
 # -----------------------------------------------------------------------------
