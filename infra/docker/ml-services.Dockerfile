@@ -2,7 +2,8 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app/ml-services:/app/ml-services/gen/python
 
 WORKDIR /app
 
@@ -17,9 +18,10 @@ RUN python -m pip install --upgrade pip \
 COPY scripts ./scripts
 COPY proto ./proto
 COPY ml-services ./ml-services
+COPY data ./data
 
 RUN bash ./scripts/generate_proto.sh --python-only
 
 WORKDIR /app/ml-services
 
-CMD ["python", "grpc_server/server.py"]
+CMD ["python", "-m", "grpc_server.server"]

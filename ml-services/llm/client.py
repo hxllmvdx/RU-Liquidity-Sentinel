@@ -1,3 +1,4 @@
+import os
 from openai import OpenAI
 
 class LLMClient:
@@ -6,10 +7,10 @@ class LLMClient:
 
         self.client = OpenAI(
             api_key="ollama",
-            base_url="http://localhost:11434/v1",
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
         )
 
-        self.model = "qwen2.5:7b"
+        self.model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 
     def generate(
         self,

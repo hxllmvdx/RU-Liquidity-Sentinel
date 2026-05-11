@@ -1,146 +1,153 @@
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
 from datetime import date as date_cls
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
-from common.database import Database
 from common.db_models import LSIResult
-from explainability.shap_explainer import explain_with_shap
-from ingestion.base_parser import BaseParser
-from llm.auto_comment import generate_auto_comment
-from lsi_engine.formula import calculate_base_lsi
-from lsi_engine.status import resolve_status
-from modules.m3_ofz.features import build_m3_features
-from modules.m3_ofz.signals import calculate_m3_signals
-from modules.m5_treasury.features import build_m5_features
-from modules.m5_treasury.signals import calculate_m5_signals
-from repositories import LSIRepository, ModuleSignalsRepository, RagRepository, ShapRepository
+from lsi_engine.formula import calculate_lsi_from_snapshot
+from pipeline.latest_snapshot import build_latest_snapshot, repo_root
+
+DASHBOARD_DIR = repo_root() / "data" / "processed" / "dashboard"
+SNAPSHOT_DIR = repo_root() / "data" / "processed" / "snapshots"
+
+MODULE_IDS = {"M1": "M1_RESERVES", "M2": "M2_REPO", "M3": "M3_OFZ", "M4": "M4_TAX", "M5": "M5_TREASURY"}
 
 
-def _load_m3_signals() -> pd.DataFrame:
-    path = Path(__file__).resolve().parents[2] / "data" / "processed" / "ofz_auction_results.csv"
-    if not path.exists():
-        return pd.DataFrame()
-    return calculate_m3_signals(build_m3_features(pd.read_csv(path)))
+def _to_bool(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.lower() in {"1", "true", "yes", "y"}
+    return bool(value)
 
 
-def _load_m5_signals() -> pd.DataFrame:
-    path = Path(__file__).resolve().parents[2] / "data" / "raw" / "treasury" / "m5_treasury" / "m5_treasury_features_2021-01-01_2026-05-10.csv"
-    if not path.exists():
-        return pd.DataFrame()
-    return calculate_m5_signals(build_m5_features(pd.read_csv(path)))
+def _save_csv_outputs(snapshot: dict[str, Any], result) -> None:
+    DASHBOARD_DIR.mkdir(parents=True, exist_ok=True)
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame([snapshot]).to_csv(SNAPSHOT_DIR / "latest_snapshot.csv", index=False)
+    row = {
+        "date": snapshot["date"],
+        "LSI": result.lsi,
+        "status": result.status,
+        "confidence": result.confidence,
+        "M1_score": result.module_scores.get("M1", 0.0),
+        "M2_score": result.module_scores.get("M2", 0.0),
+        "M3_score": result.module_scores.get("M3", 0.0),
+        "M4_Seasonal_Factor": result.module_scores.get("M4_Seasonal_Factor", 1.0),
+        "M5_score": result.module_scores.get("M5", 0.0),
+        "M1_contribution": next((c["contribution_value"] for c in result.module_contributions if c["module_id"] == "M1"), 0.0),
+        "M2_contribution": next((c["contribution_value"] for c in result.module_contributions if c["module_id"] == "M2"), 0.0),
+        "M3_contribution": next((c["contribution_value"] for c in result.module_contributions if c["module_id"] == "M3"), 0.0),
+        "M4_effect": result.module_scores.get("M4_Seasonal_Factor", 1.0),
+        "M5_contribution": next((c["contribution_value"] for c in result.module_contributions if c["module_id"] == "M5"), 0.0),
+    }
+    lsi_path = DASHBOARD_DIR / "lsi_dashboard.csv"
+    history = pd.read_csv(lsi_path) if lsi_path.exists() else pd.DataFrame()
+    history = pd.concat([history, pd.DataFrame([row])], ignore_index=True)
+    history = history.drop_duplicates(subset=["date"], keep="last").sort_values("date")
+    history.to_csv(lsi_path, index=False)
+
+    for module in ["m1", "m2", "m3", "m4", "m5"]:
+        prefix = module.upper()
+        data = {"date": snapshot["date"], "source_date": snapshot.get(f"{prefix}_date"), "status": snapshot.get(f"{prefix}_status")}
+        data.update({k: v for k, v in snapshot.items() if k.startswith(prefix + "_") and k not in {f"{prefix}_date", f"{prefix}_status"}})
+        pd.DataFrame([data]).to_csv(DASHBOARD_DIR / f"{module}_dashboard.csv", index=False)
 
 
-def _extract_signal_rows(calculation_date: date_cls, m3_df: pd.DataFrame, m5_df: pd.DataFrame) -> tuple[list[dict], list[dict]]:
-    signal_rows: list[dict] = []
-    active_flags: list[dict] = []
-
-    if not m3_df.empty:
-        latest_m3_date = pd.to_datetime(m3_df["auction_date"]).dt.date.max()
-        latest_m3 = m3_df[pd.to_datetime(m3_df["auction_date"]).dt.date == latest_m3_date]
-        for _, row in latest_m3.iterrows():
-            signal_rows.extend([
-                {"signal_date": calculation_date, "module_id": "M3_OFZ", "signal_name": "MAD_score_cover", "raw_value": row.get("cover_ratio"), "mad_score": row.get("MAD_score_cover"), "flag": bool(row.get("Stress_Flag")), "unit": "ratio", "metadata": {"ofz_issue": row.get("ofz_issue"), "stress_level": str(row.get("Stress_Level"))}},
-                {"signal_date": calculation_date, "module_id": "M3_OFZ", "signal_name": "MAD_score_yield_spread", "raw_value": row.get("yield_spread"), "mad_score": row.get("MAD_score_yield_spread"), "flag": False, "unit": "bp", "metadata": {"ofz_issue": row.get("ofz_issue")}},
-                {"signal_date": calculation_date, "module_id": "M3_OFZ", "signal_name": "Stress_Score", "raw_value": row.get("Stress_Score"), "mad_score": None, "flag": bool(row.get("Stress_Flag")), "unit": "score", "metadata": {"ofz_issue": row.get("ofz_issue")}},
-            ])
-            if int(row.get("Flag_Nedospros", 0)) == 1:
-                active_flags.append({"flag_date": calculation_date, "module_id": "M3_OFZ", "flag_name": "Flag_Nedospros", "description": "Cover ratio below 1.2", "severity": 0.8})
-            if int(row.get("Flag_Perespros", 0)) == 1:
-                active_flags.append({"flag_date": calculation_date, "module_id": "M3_OFZ", "flag_name": "Flag_Perespros", "description": "Cover ratio above 2.0", "severity": 0.3})
-
-    if not m5_df.empty:
-        latest_m5_date = pd.to_datetime(m5_df["date"]).dt.date.max()
-        latest_m5 = m5_df[pd.to_datetime(m5_df["date"]).dt.date == latest_m5_date]
-        for _, row in latest_m5.iterrows():
-            signal_rows.extend([
-                {"signal_date": calculation_date, "module_id": "M5_TREASURY", "signal_name": "MAD_score_CBR", "raw_value": row.get("cbr_weekly_delta_bln_rub"), "mad_score": row.get("MAD_score_CBR"), "flag": bool(row.get("Flag_Budget_Drain")), "unit": "bln_rub", "metadata": {"state": row.get("Budget_Drain_State")}},
-                {"signal_date": calculation_date, "module_id": "M5_TREASURY", "signal_name": "MAD_score_Roskazna", "raw_value": row.get("roskazna_weekly_delta_bln_rub"), "mad_score": row.get("MAD_score_Roskazna"), "flag": bool(row.get("Flag_Budget_Drain")), "unit": "bln_rub", "metadata": {"state": row.get("Budget_Drain_State")}},
-                {"signal_date": calculation_date, "module_id": "M5_TREASURY", "signal_name": "Budget_Drain_Score", "raw_value": row.get("Budget_Drain_Score"), "mad_score": None, "flag": bool(row.get("Flag_Budget_Drain")), "unit": "score", "metadata": {"state": row.get("Budget_Drain_State")}},
-            ])
-            if int(row.get("Flag_Budget_Drain", 0)) == 1:
-                active_flags.append({"flag_date": calculation_date, "module_id": "M5_TREASURY", "flag_name": "Flag_Budget_Drain", "description": str(row.get("Budget_Drain_State")), "severity": float(min(row.get("Budget_Drain_Score", 0.0), 1.0))})
-
-    return signal_rows, active_flags
-
-
-def run_latest_recalculation(date: str | None = None, force_reload_sources: bool = False, recalculate_shap: bool = True, regenerate_comment: bool = True) -> LSIResult:
-    del force_reload_sources
-    calculation_date = date_cls.fromisoformat(date) if date else date_cls.today()
+def _persist_to_db(snapshot: dict[str, Any], result: Any) -> list[str]:
+    from common.database import Database
     db = Database()
     db.connect()
+    signal_rows = []
+    calc_date = date_cls.fromisoformat(snapshot["date"])
+    for module in ["M1", "M2", "M3", "M4", "M5"]:
+        module_id = MODULE_IDS[module]
+        for key, value in snapshot.items():
+            if not key.startswith(module + "_"):
+                continue
+            name = key[3:]
+            if name in {"date", "status"}:
+                continue
+            is_flag = name.startswith("Flag") or name.endswith("Flag")
+            signal_rows.append({
+                "signal_date": calc_date,
+                "module_id": module_id,
+                "signal_name": name,
+                "raw_value": None if is_flag else value,
+                "mad_score": value if "MAD_score" in name else None,
+                "flag": _to_bool(value) if is_flag else False,
+                "unit": None,
+                "metadata": {"snapshot_status": snapshot.get(f"{module}_status")},
+            })
+    from repositories import LSIRepository, ModuleSignalsRepository
     signals_repo = ModuleSignalsRepository(db)
     lsi_repo = LSIRepository(db)
-    shap_repo = ShapRepository(db)
-    rag_repo = RagRepository(db)
-
-    parser_results = BaseParser.run_latest_mode(db=db)
-    updated_sources = [item.source_code for item in parser_results if item.status in ("success", "partial", "stale")]
-
-    m3_df = _load_m3_signals()
-    m5_df = _load_m5_signals()
-    signal_rows, active_flags = _extract_signal_rows(calculation_date, m3_df, m5_df)
-
-    signals_repo.clear_active_flags_for_date(calculation_date)
-    if signal_rows:
-        signals_repo.upsert_many_signals(signal_rows)
-    if active_flags:
-        signals_repo.upsert_many_active_flags(active_flags)
-
-    latest_signals = signals_repo.get_latest_signals()
-    module_scores: dict[str, float] = {}
-    for signal in latest_signals:
-        signal_name = signal["signal_name"]
-        if signal_name == "Stress_Score" and signal.get("raw_value") is not None:
-            module_scores["m3_ofz"] = max(module_scores.get("m3_ofz", 0.0), float(signal["raw_value"]) * 100.0)
-        if signal_name == "Budget_Drain_Score" and signal.get("raw_value") is not None:
-            module_scores["m5_treasury"] = max(module_scores.get("m5_treasury", 0.0), float(signal["raw_value"]) * 100.0)
-
-    lsi_value = round(calculate_base_lsi(module_scores), 2) if module_scores else 0.0
-    status = resolve_status(lsi_value)
-    lsi_row = lsi_repo.upsert_lsi_value(calculation_date, lsi_value, status, confidence=0.5, model_version="latest-recalc-v2")
-
-    total = sum(module_scores.values()) or 1.0
-    contributions = [
-        {"module_id": key.upper(), "module_name": key.upper(), "contribution_value": value, "contribution_percent": round(value / total * 100.0, 2)}
-        for key, value in module_scores.items()
-    ]
-    if contributions:
-        lsi_repo.upsert_many_module_contributions(lsi_row["id"], contributions)
-
-    shap_values = []
-    if recalculate_shap:
-        shap_payload = explain_with_shap(signal_rows)
-        shap_values = shap_payload.get("top_features", []) if isinstance(shap_payload, dict) else []
-        if shap_values:
-            shap_repo.delete_shap_values_for_lsi(lsi_row["id"])
-            shap_repo.upsert_many_shap_values(lsi_row["id"], shap_values)
-
-    comment = None
-    if regenerate_comment:
-        comment = generate_auto_comment({"date": calculation_date.isoformat(), "lsi": lsi_value, "status": status, "updated_sources": updated_sources, "active_flags": active_flags})
-        lsi_repo.update_auto_comment(calculation_date, comment)
-
-    rag_repo.delete_documents_by_source("latest_recalculation", calculation_date.isoformat())
-    rag_repo.upsert_document(
-        source_type="latest_recalculation",
-        source_id=calculation_date.isoformat(),
-        title=f"LSI summary for {calculation_date.isoformat()}",
-        content=f"LSI={lsi_value}; status={status}; sources={', '.join(updated_sources)}",
-        metadata={"contributions": contributions, "active_flags": active_flags},
-    )
-
+    with db.transaction():
+        if signal_rows:
+            signals_repo.upsert_many_signals(signal_rows)
+        lsi_row = lsi_repo.upsert_lsi_value(calc_date, result.lsi, result.status, confidence=result.confidence, model_version=result.model_version)
+        if lsi_row.get("id"):
+            lsi_repo.upsert_many_module_contributions(lsi_row["id"], result.module_contributions)
     db.close()
+    return [c["module_id"] for c in result.module_contributions]
+
+
+def _run_parsers_safely(force_reload_sources: bool = False) -> list[Any]:
+    del force_reload_sources
+    try:
+        from common.database import Database
+        db = Database()
+        db.connect()
+    except Exception:
+        db = None
+    try:
+        from ingestion.base_parser import BaseParser
+        results = BaseParser.run_latest_mode(db=db)
+        return results
+    except Exception as exc:
+        return [{"source_code": "latest_parsers", "status": "failed", "error": str(exc)}]
+    finally:
+        if db is not None:
+            db.close()
+
+
+def run_latest_recalculation(date: str | None = None, force_reload_sources: bool = False, recalculate_shap: bool = False, regenerate_comment: bool = False) -> LSIResult:
+    del recalculate_shap, regenerate_comment
+    parser_results = _run_parsers_safely(force_reload_sources=force_reload_sources)
+    snapshot = build_latest_snapshot(parser_results=parser_results)
+    if date:
+        snapshot["date"] = date
+    formula_result = calculate_lsi_from_snapshot(snapshot)
+    _save_csv_outputs(snapshot, formula_result)
+    updated_sources: list[str] = []
+    db_warning = None
+    try:
+        updated_sources = _persist_to_db(snapshot, formula_result)
+    except Exception as exc:
+        db_warning = f"PostgreSQL persist failed; CSV fallback used: {exc}"
+    active_flags = formula_result.active_flags
+    if db_warning:
+        active_flags = active_flags + [{"module_id": "SYSTEM", "flag_name": "CSV_FALLBACK", "description": db_warning, "severity": 0.2}]
     return LSIResult(
-        date=calculation_date.isoformat(),
-        lsi=lsi_value,
-        status=status,
-        confidence=0.5,
-        auto_comment=comment,
-        contributions=contributions,
-        shap_values=shap_values,
+        date=snapshot["date"],
+        lsi=formula_result.lsi,
+        status=formula_result.status,
+        confidence=formula_result.confidence,
+        auto_comment="; ".join(formula_result.warnings) if formula_result.warnings else None,
+        contributions=formula_result.module_contributions,
+        shap_values=[],
         active_flags=active_flags,
         updated_sources=updated_sources,
     )
+
+
+def main() -> None:
+    result = run_latest_recalculation()
+    print(json.dumps(asdict(result), ensure_ascii=False, indent=2, default=str))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,14 +1,9 @@
-version: "3.9"
-
+# macOS override: use Ollama already running on the host laptop.
+# Run: docker compose -f docker-compose.yml -f docker-compose.macos.yml up --build
 services:
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
+  ml-services:
     environment:
-      OLLAMA_KEEP_ALIVE: 24h
-
-volumes:
-  ollama_data:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
