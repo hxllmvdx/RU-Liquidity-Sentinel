@@ -52,10 +52,7 @@ class VectorStore:
 
         faiss.normalize_L2(embedding)
 
-        distances, indexes = self.index.search(
-            embedding,
-            min(top_k, len(self.documents)),
-        )
+        distances, indexes = self.index.search(embedding,min(top_k, len(self.documents)),)
 
         results = []
 
