@@ -42,6 +42,12 @@ BUDGET_DRAIN_THRESHOLD_BLN_RUB = 300.0
 MAD_WINDOW_DAYS = 1095
 MAD_MIN_PERIODS = 30
 MAD_DENOMINATOR_FLOOR = 1.0
+ROSKAZNA_MAD_WINDOW_DAYS = 365
+ROSKAZNA_MAD_MIN_PERIODS = 90
+ROSKAZNA_MAD_DENOMINATOR_FLOOR = 1500.0
+ROSKAZNA_DROP_THRESHOLD_BLN_RUB = 500.0
+CBR_MAD_THRESHOLD = 3.0
+ROSKAZNA_MAD_THRESHOLD = 3.0
 PLOT_MAD_CLIP = 10
 
 
@@ -221,39 +227,71 @@ mad_cbr_raw, mad_cbr_quality = rolling_mad_score_no_lookahead(
 signals_source["MAD_score_CBR"] = mad_cbr_raw
 signals_source["MAD_score_CBR_quality"] = mad_cbr_quality
 
-if "roskazna_placement_7d_sum" in signals_source.columns:
-    baseline_30d = (
-        signals_source["roskazna_placement_7d_sum"]
+# Roskazna is an event-driven flow series, so use 30-day placement flow instead
+# of raw daily or 7-day values. Important: do NOT calculate MAD on the gap itself.
+# The gap is often zero, so its rolling MAD collapses and creates huge artificial
+# scores. Calculate downside MAD directly on the 30-day placement stock/flow:
+#     stress = rolling_median(30d placements) - current_30d_placements
+# This reacts to sustained placement droughts without turning calendar mechanics
+# into permanent ±10 spikes.
+roskazna_30d_col = "roskazna_placement_30d_sum"
+
+if roskazna_30d_col in signals_source.columns:
+    roskazna_30d = pd.to_numeric(
+        signals_source[roskazna_30d_col],
+        errors="coerce",
+    ).fillna(0.0)
+
+    roskazna_30d_baseline = (
+        roskazna_30d
         .shift(1)
-        .rolling(30, min_periods=7)
+        .rolling(ROSKAZNA_MAD_WINDOW_DAYS, min_periods=ROSKAZNA_MAD_MIN_PERIODS)
         .median()
     )
-    baseline_365d = (
-        signals_source["roskazna_placement_7d_sum"]
-        .shift(1)
-        .rolling(365, min_periods=30)
-        .median()
+
+    signals_source["roskazna_placement_30d_gap_bln_rub"] = (
+        roskazna_30d_baseline - roskazna_30d
+    ).clip(lower=0.0)
+
+    # Downside-only robust score. Equivalent to:
+    #     (rolling_median(roskazna_30d) - roskazna_30d) / robust_scale
+    # The minus sign lets the common MAD helper treat a placement decline as
+    # positive stress.
+    mad_roskazna_raw, mad_roskazna_quality = rolling_mad_score_no_lookahead(
+        -roskazna_30d,
+        window_days=ROSKAZNA_MAD_WINDOW_DAYS,
+        min_periods=ROSKAZNA_MAD_MIN_PERIODS,
+        denominator_floor=ROSKAZNA_MAD_DENOMINATOR_FLOOR,
     )
-    baseline = baseline_30d.fillna(baseline_365d)
-    signals_source["roskazna_placement_drop_bln_rub"] = np.maximum(
-        baseline - signals_source["roskazna_placement_7d_sum"], 0.0
-    )
+    mad_roskazna_raw = mad_roskazna_raw.clip(lower=0.0)
 else:
     print(
-        "WARNING: roskazna_placement_7d_sum missing; Roskazna MAD will be neutral-filled."
+        "WARNING: roskazna_placement_30d_sum missing; Roskazna MAD will be neutral-filled."
     )
-    signals_source["roskazna_placement_drop_bln_rub"] = np.nan
+    signals_source["roskazna_placement_30d_gap_bln_rub"] = np.nan
+    mad_roskazna_raw = pd.Series(np.nan, index=signals_source.index)
+    mad_roskazna_quality = pd.Series(
+        "missing_input_neutral_fill",
+        index=signals_source.index,
+        dtype="object",
+    )
 
-mad_roskazna_raw, mad_roskazna_quality = rolling_mad_score_no_lookahead(
-    signals_source["roskazna_placement_drop_bln_rub"]
-)
+# Backward-compatible alias for older dashboards / downstream code.
+signals_source["roskazna_placement_drop_bln_rub"] = signals_source[
+    "roskazna_placement_30d_gap_bln_rub"
+]
 signals_source["MAD_score_Roskazna"] = mad_roskazna_raw
 signals_source["MAD_score_Roskazna_quality"] = mad_roskazna_quality
 
-signals_source["Flag_Budget_Drain"] = signals_source["MAD_score_CBR"] >= 3.0
+signals_source["Flag_Budget_Drain"] = (
+    signals_source["MAD_score_CBR"].fillna(0.0) >= CBR_MAD_THRESHOLD
+)
 if "roskazna_placement_drop_bln_rub" in signals_source.columns:
     signals_source["Flag_Treasury_Placement_Drop"] = (
-        signals_source["roskazna_placement_drop_bln_rub"].fillna(0).ge(300.0)
+        signals_source["MAD_score_Roskazna"].fillna(0.0).ge(ROSKAZNA_MAD_THRESHOLD)
+        | signals_source["roskazna_placement_drop_bln_rub"]
+        .fillna(0.0)
+        .ge(ROSKAZNA_DROP_THRESHOLD_BLN_RUB)
     )
 
 # %%
@@ -319,6 +357,7 @@ dashboard_columns = [
     "cbr_weekly_delta_bln_rub",
     "cbr_monthly_delta_bln_rub",
     "budget_drain_bln_rub",
+    "roskazna_placement_30d_gap_bln_rub",
     "roskazna_placement_drop_bln_rub",
     "MAD_score_CBR",
     "MAD_score_Roskazna",
@@ -387,7 +426,7 @@ plt.axhline(
     -BUDGET_DRAIN_THRESHOLD_BLN_RUB,
     linestyle="--",
     linewidth=1,
-    label="Weekly drain threshold: -300 bln RUB",
+    label=f"Weekly drain threshold: -{BUDGET_DRAIN_THRESHOLD_BLN_RUB:.0f} bln RUB",
 )
 flagged = dashboard[dashboard["Flag_Budget_Drain"]]
 if not flagged.empty and "cbr_weekly_delta_bln_rub" in dashboard.columns:
@@ -426,8 +465,9 @@ plt.plot(
     plot_mad_roskazna,
     label=f"MAD_score_Roskazna clipped to ±{PLOT_MAD_CLIP}",
 )
-plt.axhline(2, linestyle="--", linewidth=1, label="+2 MAD")
-plt.axhline(-2, linestyle="--", linewidth=1, label="-2 MAD")
+plt.axhline(2, linestyle="--", linewidth=1, label="+2 MAD reference")
+plt.axhline(ROSKAZNA_MAD_THRESHOLD, linestyle=":", linewidth=1, label="Roskazna flag threshold")
+plt.axhline(-2, linestyle="--", linewidth=1, label="-2 MAD reference")
 plt.title("M5 MAD stress signals — clipping only for visualization")
 plt.xlabel("Date")
 plt.ylabel("MAD score")
@@ -497,6 +537,15 @@ summary = pd.DataFrame(
             "Flag_Budget_Drain_count": int(
                 signals_source["Flag_Budget_Drain"].sum()
             ),
+            "Flag_Treasury_Placement_Drop_count": int(
+                signals_source.get(
+                    "Flag_Treasury_Placement_Drop",
+                    pd.Series(False, index=signals_source.index),
+                ).sum()
+            ),
+            "CBR_MAD_THRESHOLD": CBR_MAD_THRESHOLD,
+            "ROSKAZNA_MAD_THRESHOLD": ROSKAZNA_MAD_THRESHOLD,
+            "ROSKAZNA_DROP_THRESHOLD_BLN_RUB": ROSKAZNA_DROP_THRESHOLD_BLN_RUB,
             "has_cbr_update_count": int(
                 signals_source.get(
                     "has_cbr_update",
