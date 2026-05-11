@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import json
 import csv
 from collections import defaultdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+import json
+import sys
 
 from modules.m5_treasury.schema import M5TreasuryFeatureRecord
 
@@ -27,12 +28,55 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def _read_csv(path: Path) -> list[dict]:
+    csv.field_size_limit(sys.maxsize)
     with path.open(encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
 
 
 def _month_start(value: date) -> date:
     return date(value.year, value.month, 1)
+
+
+def _latest_on_or_before(series: dict[date, dict], target_date: date) -> dict | None:
+    eligible_dates = [series_date for series_date in series if series_date <= target_date]
+    if not eligible_dates:
+        return None
+    return series[max(eligible_dates)]
+
+
+def _interpolate_sors_value(sors_by_date: dict[date, dict], target_date: date) -> tuple[float | None, dict | None]:
+    if target_date in sors_by_date:
+        source = sors_by_date[target_date]
+        return _maybe_float(source["value_bln_rub"]), source
+
+    sorted_dates = sorted(sors_by_date)
+    previous_dates = [series_date for series_date in sorted_dates if series_date < target_date]
+    next_dates = [series_date for series_date in sorted_dates if series_date > target_date]
+    if not previous_dates:
+        return None, None
+
+    previous_date = previous_dates[-1]
+    previous_source = sors_by_date[previous_date]
+    previous_value = _maybe_float(previous_source["value_bln_rub"])
+    if previous_value is None:
+        return None, previous_source
+
+    if not next_dates:
+        return previous_value, previous_source
+
+    next_date = next_dates[0]
+    next_source = sors_by_date[next_date]
+    next_value = _maybe_float(next_source["value_bln_rub"])
+    if next_value is None:
+        return previous_value, previous_source
+
+    total_days = (next_date - previous_date).days
+    elapsed_days = (target_date - previous_date).days
+    if total_days <= 0:
+        return previous_value, previous_source
+
+    interpolated_value = previous_value + (next_value - previous_value) * (elapsed_days / total_days)
+    return interpolated_value, previous_source
 
 
 def build_features(
@@ -51,11 +95,11 @@ def build_features(
             "source_file": ",".join(sorted({item["source_file"] for item in items if item.get("source_file")})),
         }
 
-    eks_monthly_grouped: dict[date, list[dict]] = defaultdict(list)
+    eks_daily_grouped: dict[date, list[dict]] = defaultdict(list)
     for item in eks_records:
-        eks_monthly_grouped[_month_start(date.fromisoformat(item["observation_date"]))].append(item)
+        eks_daily_grouped[date.fromisoformat(item["observation_date"])].append(item)
     eks_by_date: dict[date, dict] = {}
-    for observation_date, items in eks_monthly_grouped.items():
+    for observation_date, items in eks_daily_grouped.items():
         eks_by_date[observation_date] = {
             "observation_date": observation_date.isoformat(),
             "placement_volume_bln_rub": sum(_maybe_float(item["placement_volume_bln_rub"]) or 0.0 for item in items),
@@ -71,24 +115,22 @@ def build_features(
         for item in liquidity_records
     }
 
-    all_dates = sorted(set(sors_by_date) | set(eks_by_date))
+    all_dates = sorted(set(sors_by_date) | set(eks_by_date) | set(liquidity_by_date))
     features: list[M5TreasuryFeatureRecord] = []
-    previous_month_value: float | None = None
+    balance_by_date: dict[date, float | None] = {}
 
     for observation_date in all_dates:
-        sors = sors_by_date.get(observation_date)
+        balance, sors = _interpolate_sors_value(sors_by_date, observation_date)
         eks = eks_by_date.get(observation_date)
-        balance = _maybe_float(sors["value_bln_rub"]) if sors else None
-        delta_month = None if balance is None or previous_month_value is None else balance - previous_month_value
-        if balance is not None:
-            previous_month_value = balance
+        latest_liquidity = _latest_on_or_before(liquidity_by_date, observation_date)
+        balance_by_date[observation_date] = balance
 
-        latest_liquidity = None
-        for liquidity_date in sorted(liquidity_by_date):
-            if liquidity_date <= observation_date:
-                latest_liquidity = liquidity_by_date[liquidity_date]
-            else:
-                break
+        week_anchor = observation_date - timedelta(days=7)
+        month_anchor = observation_date - timedelta(days=30)
+        week_reference = _latest_on_or_before({d: {"value": v} for d, v in balance_by_date.items() if v is not None}, week_anchor)
+        month_reference = _latest_on_or_before({d: {"value": v} for d, v in balance_by_date.items() if v is not None}, month_anchor)
+        delta_week = None if balance is None or week_reference is None else balance - _maybe_float(week_reference["value"])
+        delta_month = None if balance is None or month_reference is None else balance - _maybe_float(month_reference["value"])
 
         features.append(
             M5TreasuryFeatureRecord(
@@ -96,7 +138,7 @@ def build_features(
                 observation_date=observation_date,
                 federal_budget_and_extrabudgetary_funds_balances_bln_rub=balance,
                 eks_deposit_placement_volume_bln_rub=_maybe_float(eks["placement_volume_bln_rub"]) if eks else None,
-                delta_week_bln_rub=None,
+                delta_week_bln_rub=delta_week,
                 delta_month_bln_rub=delta_month,
                 participant_banks_count=_maybe_int(eks["participant_banks_count"]) if eks else None,
                 ground_truth_liquidity_bln_rub=_maybe_float(latest_liquidity["value_bln_rub"]) if latest_liquidity else None,
