@@ -117,6 +117,12 @@ class SorsParser(BaseParser):
             latest_observation_date=latest_date,
         )
 
+    def run_latest(self, out_dir: Path | None = None) -> ParserRunResult:
+        return self.run(DEFAULT_MIN_DATE, self.utc_now().date(), out_dir=out_dir)
+
+    def run_historical(self, date_from: date, date_to: date, out_dir: Path | None = None) -> ParserRunResult:
+        return self.run(date_from, date_to, out_dir=out_dir)
+
     def _read_sheet_rows(self, workbook_path: Path, target_sheet_name: str) -> tuple[str, list[list[str | float | None]]]:
         with zipfile.ZipFile(workbook_path) as archive:
             shared_strings = self._read_shared_strings(archive)
