@@ -455,7 +455,16 @@ class EksDepositsParser(BaseParser):
         output_path = output_root / "roskazna" / "eks_deposits" / "normalized" / f"roskazna_eks_deposits_{date_from.isoformat()}_{date_to.isoformat()}.csv"
         write_csv_atomic(records, output_path)
         LOGGER.info("Wrote %s aggregated EKS rows -> %s", len(records), output_path)
-        return ParserRunResult(self.source_code, len(records), output_path, date_from, date_to)
+        latest_date = max((record.observation_date for record in records), default=None)
+        return ParserRunResult(
+            source_code=self.source_code,
+            status="success",
+            record_count=len(records),
+            output_path=output_path,
+            requested_from=date_from,
+            requested_to=date_to,
+            latest_observation_date=latest_date,
+        )
 
 
 def main() -> None:

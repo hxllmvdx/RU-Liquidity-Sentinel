@@ -8,6 +8,7 @@ import re
 
 from bs4 import BeautifulSoup
 
+from common.db_models import RawFetchResult, RawObservation, SourceStatus
 from ingestion.base_parser import BaseParser, ParserRunResult
 from ingestion.cbr.client import CbrClient
 from ingestion.cbr.exceptions import CbrEmptyResultError, CbrParserError
@@ -30,8 +31,10 @@ class RepoParser(BaseParser):
     source_name = "cbr_repo"
     source_code = "CBR_REPO"
     path = "/hd_base/repo/"
+    source_url = "https://www.cbr.ru/hd_base/repo/"
 
-    def __init__(self, client: CbrClient | None = None) -> None:
+    def __init__(self, client: CbrClient | None = None, db=None) -> None:
+        super().__init__(db=db)
         self.client = client or CbrClient()
         self.keyrate_parser = KeyRateParser(client=self.client)
 
@@ -55,6 +58,53 @@ class RepoParser(BaseParser):
         if not records:
             raise CbrEmptyResultError("repo parser produced no records")
         return records
+
+    def fetch_latest(self) -> RawFetchResult:
+        date_to = self.utc_now().date()
+        date_from = date_to - timedelta(days=14)
+        url = self.client.build_url(self.path, date_from, date_to, extra_params={"UniDbQuery.P1": "0"})
+        html = self.client.get(self.path, date_from, date_to, extra_params={"UniDbQuery.P1": "0"})
+        return RawFetchResult(
+            source_code=self.source_code,
+            url=url,
+            fetched_at=self.utc_now(),
+            status=SourceStatus.SUCCESS,
+            content=html,
+            metadata={"date_from": date_from.isoformat(), "date_to": date_to.isoformat(), "focus_term_days": 7},
+        )
+
+    def parse_latest(self, raw: RawFetchResult) -> list[RawObservation]:
+        listing_html = str(raw.content)
+        auction_dates = self.parse_listing_dates(listing_html)
+        if not auction_dates:
+            return []
+        latest_date = max(auction_dates)
+        keyrates = self.keyrate_parser.fetch(latest_date - timedelta(days=365), latest_date)
+        detail_html = self.client.get(self.path, latest_date, latest_date, extra_params={"UniDbQuery.P1": "0"})
+        record = self.parse_detail_html(detail_html, keyrates)
+        if record is None:
+            return []
+        observations = [
+            ("demand_amount", record.demand_volume_bln_rub, "bln_rub"),
+            ("placement_amount", record.placement_volume_bln_rub, "bln_rub"),
+            ("cut_off_rate", record.cutoff_rate_percent, "percent_per_annum"),
+            ("weighted_avg_rate", record.weighted_average_rate_percent, "percent_per_annum"),
+            ("term_days", float(record.term_days) if record.term_days is not None else None, "days"),
+            ("cover_ratio", record.cover_ratio, "ratio"),
+            ("rate_spread", record.rate_spread_to_key_rate_percent, "percent_per_annum"),
+        ]
+        return [
+            RawObservation(
+                source_code=self.source_code,
+                observation_date=record.observation_date,
+                metric_name=name,
+                metric_value=value,
+                unit=unit,
+                raw_payload=record.to_dict(),
+            )
+            for name, value, unit in observations
+            if value is not None and (record.term_days == 7 or name == "term_days")
+        ]
 
     def discover_available_range(self) -> tuple[date, date]:
         html = self.client.get(self.path, date(2002, 11, 21), self.utc_now().date(), extra_params={"UniDbQuery.P1": "0"})
@@ -267,13 +317,24 @@ class RepoParser(BaseParser):
     ) -> ParserRunResult:
         records = self.fetch(date_from, date_to)
         output_path = self.save(records, date_from, date_to, out_dir=out_dir, overwrite=overwrite)
+        latest_date = max((record.observation_date for record in records), default=None)
         return ParserRunResult(
             source_code=self.source_code,
+            status=SourceStatus.SUCCESS,
             record_count=len(records),
             output_path=output_path,
             requested_from=date_from,
             requested_to=date_to,
+            latest_observation_date=latest_date,
         )
+
+    def run_latest(self, out_dir: Path | None = None) -> ParserRunResult:
+        date_to = self.utc_now().date()
+        date_from = date_to - timedelta(days=14)
+        return self.run(date_from=date_from, date_to=date_to, out_dir=out_dir)
+
+    def run_historical(self, date_from: date, date_to: date, out_dir: Path | None = None) -> ParserRunResult:
+        return self.run(date_from=date_from, date_to=date_to, out_dir=out_dir)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

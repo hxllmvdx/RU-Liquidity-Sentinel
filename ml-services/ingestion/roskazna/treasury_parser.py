@@ -1,49 +1,82 @@
 from __future__ import annotations
 
-from datetime import date
-import logging
-from pathlib import Path
+from datetime import date, timedelta
 
+from common.db_models import RawFetchResult, RawObservation, SourceStatus
 from ingestion.base_parser import BaseParser, ParserRunResult
-from ingestion.cbr.io import write_csv_atomic
-from ingestion.cbr.liquidity_parser import LiquidityParser
-from ingestion.cbr.sors_parser import SorsParser
 from ingestion.roskazna.eks_deposits_parser import EksDepositsParser
-from modules.m5_treasury.features import build_features_from_files
-
-
-LOGGER = logging.getLogger(__name__)
 
 
 class TreasuryParser(BaseParser):
     source_name = "roskazna_treasury"
-    source_code = "M5_TREASURY"
+    source_code = "ROSKAZNA_TREASURY"
+    source_url = "https://roskazna.gov.ru/finansovye-operacii/"
 
-    def fetch(self, date_from: date, date_to: date) -> list:
-        raise NotImplementedError("Use run() for treasury feature orchestration")
+    def __init__(self, parser: EksDepositsParser | None = None, db=None) -> None:
+        super().__init__(db=db)
+        self.parser = parser or EksDepositsParser()
 
-    def run(self, date_from: date, date_to: date, out_dir: Path | None = None) -> ParserRunResult:
-        output_root = out_dir or self.default_out_dir
-        LOGGER.info("Starting treasury build for %s..%s into %s", date_from.isoformat(), date_to.isoformat(), output_root)
-
-        sors_result = SorsParser().run(date_from, date_to, output_root)
-        LOGGER.info("SORS ready: %s records -> %s", sors_result.record_count, sors_result.output_path)
-        eks_result = EksDepositsParser().run(date_from, date_to, output_root)
-        LOGGER.info("EKS ready: %s records -> %s", eks_result.record_count, eks_result.output_path)
-        liquidity_result = LiquidityParser().run(date_from, date_to, output_root)
-        LOGGER.info("Liquidity ready: %s records -> %s", liquidity_result.record_count, liquidity_result.output_path)
-
-        features = build_features_from_files(
-            sors_result.output_path,
-            eks_result.output_path,
-            liquidity_result.output_path,
+    def fetch_latest(self) -> RawFetchResult:
+        date_to = self.utc_now().date()
+        date_from = date_to - timedelta(days=7)
+        records = self.parser.fetch(date_from, date_to)
+        return RawFetchResult(
+            source_code=self.source_code,
+            url=self.source_url,
+            fetched_at=self.utc_now(),
+            status=SourceStatus.SUCCESS if records else SourceStatus.STALE,
+            content=records,
+            metadata={"date_from": date_from.isoformat(), "date_to": date_to.isoformat()},
         )
-        output_path = (
-            output_root
-            / "treasury"
-            / "m5_treasury"
-            / f"m5_treasury_features_{date_from.isoformat()}_{date_to.isoformat()}.csv"
+
+    def parse_latest(self, raw: RawFetchResult) -> list[RawObservation]:
+        records = list(raw.content or [])
+        if not records:
+            return []
+        latest_date = max(record.observation_date for record in records)
+        latest_records = [record for record in records if record.observation_date == latest_date]
+        observations: list[RawObservation] = []
+        for record in latest_records:
+            metrics = [
+                ("placement_amount", record.placement_volume_bln_rub, "bln_rub"),
+                ("participants_count", float(record.participant_banks_count) if record.participant_banks_count is not None else None, "count"),
+                ("delta", None, "bln_rub"),
+            ]
+            for metric_name, metric_value, unit in metrics:
+                observations.append(
+                    RawObservation(
+                        source_code=self.source_code,
+                        observation_date=record.observation_date,
+                        metric_name=metric_name,
+                        metric_value=metric_value,
+                        unit=unit,
+                        raw_payload=record.to_dict(),
+                    )
+                )
+        return observations
+
+    def run_latest(self, out_dir=None) -> ParserRunResult:
+        date_to = self.utc_now().date()
+        date_from = date_to - timedelta(days=7)
+        records = self.parser.fetch(date_from, date_to)
+        latest_date = max((record.observation_date for record in records), default=None)
+        return ParserRunResult(
+            source_code=self.source_code,
+            status=SourceStatus.SUCCESS if records else SourceStatus.STALE,
+            record_count=len(records),
+            requested_from=date_from,
+            requested_to=date_to,
+            latest_observation_date=latest_date,
         )
-        write_csv_atomic(features, output_path)
-        LOGGER.info("Treasury features ready: %s rows -> %s", len(features), output_path)
-        return ParserRunResult(self.source_code, len(features), output_path, date_from, date_to)
+
+    def run_historical(self, date_from: date, date_to: date, out_dir=None) -> ParserRunResult:
+        records = self.parser.fetch(date_from, date_to)
+        latest_date = max((record.observation_date for record in records), default=None)
+        return ParserRunResult(
+            source_code=self.source_code,
+            status=SourceStatus.SUCCESS if records else SourceStatus.STALE,
+            record_count=len(records),
+            requested_from=date_from,
+            requested_to=date_to,
+            latest_observation_date=latest_date,
+        )
