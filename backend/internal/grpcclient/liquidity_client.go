@@ -14,6 +14,11 @@ const (
 	defaultTimeout  = 10 * time.Second
 	longJobTimeout  = 60 * time.Second
 	backtestTimeout = 45 * time.Second
+	// Chat goes through Ollama on the host (potentially CPU/Metal-bound
+	// LLM generation), so we give it a generous 3-minute ceiling.
+	chatTimeout = 3 * time.Minute
+	// Dashboard auto-comment generation also hits Ollama; allow up to 90s.
+	commentTimeout = 90 * time.Second
 )
 
 func (c *LiquidityClient) GetCurrentLSI(ctx context.Context, includeShap, includeForecast, includeComment bool) (*dto.DashboardResponse, error) {
@@ -168,7 +173,7 @@ func (c *LiquidityClient) GetBacktest(ctx context.Context, req dto.BacktestReque
 }
 
 func (c *LiquidityClient) GenerateAutoComment(ctx context.Context, req dto.GenerateAutoCommentRequest) (*dto.AutoCommentResponse, error) {
-	callCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	callCtx, cancel := context.WithTimeout(ctx, commentTimeout)
 	defer cancel()
 
 	status, ok := mapper.ParseStatusToProto(req.Status)
@@ -200,7 +205,7 @@ func (c *LiquidityClient) GenerateAutoComment(ctx context.Context, req dto.Gener
 }
 
 func (c *LiquidityClient) ChatAnalyst(ctx context.Context, req dto.ChatRequest) (*dto.ChatResponse, error) {
-	callCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	callCtx, cancel := context.WithTimeout(ctx, chatTimeout)
 	defer cancel()
 
 	pbReq := &pb.ChatRequest{

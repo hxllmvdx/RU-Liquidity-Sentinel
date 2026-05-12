@@ -1,9 +1,36 @@
-# macOS override: use Ollama already running on the host laptop.
+# macOS override: redirect ml-services and ollama-puller to the host
+# Ollama (Metal-accelerated). The containerized `ollama` service from the
+# base compose is replaced with a no-op so it does not fight the host
+# install for port 11434 or waste CPU on a duplicate model.
+#
 # Run: docker compose -f docker-compose.yml -f docker-compose.macos.yml up --build
 services:
-  ml-services:
-    environment:
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    ollama:
+        # No-op stand-in: stays "running + healthy" so dependents start, but
+        # does not actually serve Ollama. Real traffic goes to host.docker.internal.
+        image: alpine:3.20
+        entrypoint: ["sleep", "infinity"]
+        ports: !reset []
+        volumes: !reset []
+        healthcheck:
+            test: ["CMD", "true"]
+            interval: 5s
+            timeout: 2s
+            retries: 1
+            start_period: 1s
+
+    ollama-puller:
+        # Hardcoded so a stray OLLAMA_HOST in .env or shell can't redirect us
+        # back at the in-container ollama. On macOS we always want the host.
+        environment:
+            OLLAMA_HOST: "http://host.docker.internal:11434"
+            OLLAMA_PLANNER_MODEL: ${OLLAMA_PLANNER_MODEL:-${OLLAMA_MODEL:-qwen2.5:7b}}
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+
+    ml-services:
+        environment:
+            OLLAMA_BASE_URL: "http://host.docker.internal:11434/v1"
+            OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
