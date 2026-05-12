@@ -7,10 +7,7 @@ services:
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
         healthcheck:
             test:
-                [
-                    "CMD-SHELL",
-                    "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"
-                ]
+                ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
             interval: 5s
             timeout: 5s
             retries: 10
@@ -36,7 +33,7 @@ services:
             [
                 "sh",
                 "-lc",
-                "psql postgresql://$$POSTGRES_USER:$$POSTGRES_PASSWORD@postgres:5432/$$POSTGRES_DB -v ON_ERROR_STOP=1 -f /migrations/init.sql"
+                "psql postgresql://$$POSTGRES_USER:$$POSTGRES_PASSWORD@postgres:5432/$$POSTGRES_DB -v ON_ERROR_STOP=1 -f /migrations/init.sql",
             ]
 
     redis:
@@ -49,6 +46,41 @@ services:
             retries: 5
         ports:
             - "${REDIS_PORT}:6379"
+
+    ollama:
+        image: ollama/ollama:latest
+        # Persist downloaded models across container restarts so we don't
+        # re-pull multi-GB weights every boot.
+        volumes:
+            - ollama_data:/root/.ollama
+        ports:
+            - "${OLLAMA_PORT:-11434}:11434"
+        healthcheck:
+            test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+            interval: 5s
+            timeout: 5s
+            retries: 60
+            start_period: 30s
+        restart: unless-stopped
+
+    ollama-puller:
+        image: ollama/ollama:latest
+        depends_on:
+            ollama:
+                condition: service_healthy
+        environment:
+            OLLAMA_HOST: http://ollama:11434
+            OLLAMA_PLANNER_MODEL: ${OLLAMA_PLANNER_MODEL:-${OLLAMA_MODEL:-qwen3:8b}}
+        entrypoint:
+            - /bin/sh
+            - -lc
+            - |
+                set -eu
+                echo "[ollama-puller] target: $$OLLAMA_HOST"
+                echo "[ollama-puller] pulling model: $$OLLAMA_PLANNER_MODEL"
+                ollama pull "$$OLLAMA_PLANNER_MODEL"
+                echo "[ollama-puller] done."
+        restart: "no"
 
     backend:
         build:
@@ -106,13 +138,17 @@ services:
             RLS_BOOTSTRAP_FORCE_HISTORICAL_PARSERS: ${RLS_BOOTSTRAP_FORCE_HISTORICAL_PARSERS:-true}
             RLS_BOOTSTRAP_MIN_HISTORY_ROWS: ${RLS_BOOTSTRAP_MIN_HISTORY_ROWS:-1000}
             RLS_PROCESSING_SCRIPT_TIMEOUT_SECONDS: ${RLS_PROCESSING_SCRIPT_TIMEOUT_SECONDS:-1200}
-            OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
-            OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+            OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
+            OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
             PYTHONPATH: /app/ml-services:/app/ml-services/gen/python
         volumes:
             - ./data:/app/data
         healthcheck:
-            test: ["CMD-SHELL", "python -c 'import socket; s=socket.create_connection((\"127.0.0.1\", 50051), 2); s.close()'"]
+            test:
+                [
+                    "CMD-SHELL",
+                    'python -c ''import socket; s=socket.create_connection(("127.0.0.1", 50051), 2); s.close()''',
+                ]
             interval: 10s
             timeout: 5s
             retries: 120
@@ -122,6 +158,8 @@ services:
                 condition: service_completed_successfully
             redis:
                 condition: service_started
+            ollama-puller:
+                condition: service_completed_successfully
         ports:
             - "${ML_GRPC_PORT}:50051"
 
@@ -140,3 +178,4 @@ services:
 
 volumes:
     postgres_data:
+    ollama_data:

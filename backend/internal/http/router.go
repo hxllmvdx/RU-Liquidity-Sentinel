@@ -18,7 +18,10 @@ func NewRouter(services *service.Services) *gin.Engine {
 		middleware.Recovery(),
 		middleware.CORS("http://localhost:3000"),
 		middleware.TimeoutWithOverrides(5*time.Second, map[string]time.Duration{
-			"/api/recalculate": 65 * time.Second,
+			"/api/recalculate":       65 * time.Second,
+			"/api/analyst/chat":      3 * time.Minute,
+			"/api/analyst/comment":   2 * time.Minute,
+			"/api/dashboard/current": 2 * time.Minute,
 		}),
 	)
 
