@@ -1,2 +1,34 @@
 syntax = "proto3";
+
 package liquidity.v1;
+
+import "liquidity/v1/common.proto";
+import "liquidity/v1/lsi.proto";
+
+option go_package = "github.com/your-org/ru-liquidity-sentinel/backend/gen/go/liquidity/v1;liquidityv1";
+
+message ScenarioShock {
+  string feature_name = 1;
+  ModuleId module_id = 2;
+  double delta = 3;
+  double absolute_value = 4;
+  string unit = 5;
+}
+
+message RunScenarioRequest {
+  string base_date = 1;
+  repeated ScenarioShock shocks = 2;
+  bool tax_week_enabled = 3;
+}
+
+message ScenarioResponse {
+  string base_date = 1;
+  double base_lsi = 2;
+  Status base_status = 3;
+  double scenario_lsi = 4;
+  Status scenario_status = 5;
+  double delta_lsi = 6;
+  repeated ModuleContribution changed_contributions = 7;
+  repeated ShapValue scenario_shap_values = 8;
+  string explanation = 9;
+}

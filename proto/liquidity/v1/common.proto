@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package liquidity.v1;
+
+option go_package = "github.com/your-org/ru-liquidity-sentinel/backend/gen/go/liquidity/v1;liquidityv1";
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_GREEN = 1;
+  STATUS_YELLOW = 2;
+  STATUS_RED = 3;
+}
+
+enum ModuleId {
+  MODULE_ID_UNSPECIFIED = 0;
+  MODULE_ID_M1_RESERVES = 1;
+  MODULE_ID_M2_REPO = 2;
+  MODULE_ID_M3_OFZ = 3;
+  MODULE_ID_M4_TAX = 4;
+  MODULE_ID_M5_TREASURY = 5;
+}
+
+message DateRange {
+  string from = 1;
+  string to = 2;
+}
+
+message Pagination {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ErrorInfo {
+  string code = 1;
+  string message = 2;
+}
+
+message DataPoint {
+  string date = 1;
+  double value = 2;
+}
+
+message NamedValue {
+  string name = 1;
+  double value = 2;
+}

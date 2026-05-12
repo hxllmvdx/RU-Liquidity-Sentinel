@@ -1,2 +1,41 @@
 syntax = "proto3";
+
 package liquidity.v1;
+
+import "liquidity/v1/common.proto";
+
+option go_package = "github.com/your-org/ru-liquidity-sentinel/backend/gen/go/liquidity/v1;liquidityv1";
+
+message GenerateAutoCommentRequest {
+  string date = 1;
+  double lsi = 2;
+  Status status = 3;
+  repeated NamedValue module_contributions = 4;
+  repeated string active_flags = 5;
+  repeated string upcoming_events = 6;
+}
+
+message AutoCommentResponse {
+  string comment = 1;
+  string retrospective = 2;
+  string outlook = 3;
+}
+
+message ChatRequest {
+  string session_id = 1;
+  string user_message = 2;
+  DateRange preferred_range = 3;
+}
+
+message RetrievedContext {
+  string source_type = 1;
+  string title = 2;
+  string content = 3;
+  double relevance = 4;
+}
+
+message ChatResponse {
+  string session_id = 1;
+  string answer = 2;
+  repeated RetrievedContext contexts = 3;
+}

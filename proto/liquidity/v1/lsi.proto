@@ -1,2 +1,76 @@
 syntax = "proto3";
+
 package liquidity.v1;
+
+import "liquidity/v1/common.proto";
+import "liquidity/v1/modules.proto";
+
+option go_package = "github.com/your-org/ru-liquidity-sentinel/backend/gen/go/liquidity/v1;liquidityv1";
+
+message ModuleContribution {
+  ModuleId module_id = 1;
+  string module_name = 2;
+  double contribution_value = 3;
+  double contribution_percent = 4;
+}
+
+message ShapValue {
+  string feature_name = 1;
+  ModuleId module_id = 2;
+  double value = 3;
+  double abs_value = 4;
+}
+
+message ForecastPoint {
+  string horizon = 1;
+  string target_date = 2;
+  double lsi = 3;
+  Status status = 4;
+  double confidence = 5;
+}
+
+message LSIResponse {
+  string date = 1;
+  double lsi = 2;
+  Status status = 3;
+  double confidence = 4;
+  repeated ModuleContribution contributions = 5;
+  repeated ShapValue shap_values = 6;
+  repeated ActiveFlag active_flags = 7;
+  repeated ForecastPoint forecast = 8;
+  string auto_comment = 9;
+}
+
+message GetCurrentLSIRequest {
+  bool include_shap = 1;
+  bool include_forecast = 2;
+  bool include_comment = 3;
+}
+
+message GetLSIHistoryRequest {
+  DateRange range = 1;
+  Pagination pagination = 2;
+}
+
+message LSIHistoryPoint {
+  string date = 1;
+  double lsi = 2;
+  Status status = 3;
+  double confidence = 4;
+}
+
+message GetLSIHistoryResponse {
+  repeated LSIHistoryPoint points = 1;
+}
+
+message RecalculateLSIRequest {
+  string date = 1;
+  bool force_reload_sources = 2;
+  bool recalculate_shap = 3;
+  bool regenerate_comment = 4;
+}
+
+message RecalculateLSIResponse {
+  LSIResponse result = 1;
+  repeated string updated_sources = 2;
+}

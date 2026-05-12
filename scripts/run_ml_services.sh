@@ -2,4 +2,9 @@
 set -euo pipefail
 
 cd ml-services
-python3 grpc_server/server.py
+
+if [[ -x ".venv/bin/python" ]]; then
+  exec .venv/bin/python grpc_server/server.py
+fi
+
+exec python3 grpc_server/server.py

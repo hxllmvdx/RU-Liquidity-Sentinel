@@ -1,0 +1,8 @@
+minfin:
+  auction_page: "https://minfin.gov.ru/ru/perfomance/public_debt/internal/operations/ofz/auction"
+  timeout_seconds: 30
+  user_agent: "Mozilla/5.0 (compatible; OFZAuctionParser/1.0)"
+cbr:
+  search_url: "https://www.cbr.ru/search/"
+  timeout_seconds: 30
+  user_agent: "Mozilla/5.0 (compatible; OFZAuctionParser/1.0)"
