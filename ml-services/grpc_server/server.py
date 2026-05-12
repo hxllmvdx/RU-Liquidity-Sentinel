@@ -319,7 +319,7 @@ class LiquidityServicer(liquidity_pb2_grpc.LiquidityServiceServicer):
         result = answer_question(request.user_message)
         contexts = []
         for idx, item in enumerate(result.get("citations", [])[:10]):
-            contexts.append(lsi_pb2.ChatContext(
+            contexts.append(analyst_pb2.RetrievedContext(
                 source_type="rag",
                 title=f"context_{idx + 1}",
                 content=str(item),
@@ -346,10 +346,23 @@ def bootstrap_history_on_startup() -> None:
     except Exception as exc:  # pragma: no cover
         logger.warning("Startup LSI history bootstrap failed: %s", exc, exc_info=True)
 
+def train_lsi_model_on_startup() -> None:
+    """Train the IsolationForest LSI model and persist artifacts so the
+    history bootstrap (and live snapshot predictions) use the model
+    instead of the explainable-formula fallback."""
+    try:
+        from lsi_engine import iso_model
+        result = iso_model.bootstrap_train_if_needed()
+        logger.info("LSI model startup training result: %s", result)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("LSI model startup training failed: %s", exc, exc_info=True)
+
+
 def serve() -> None:
     if IMPORT_ERROR is not None:
         raise RuntimeError(f"Python protobuf stubs are not generated or importable: {IMPORT_ERROR}")
     settings = Settings()
+    train_lsi_model_on_startup()
     bootstrap_history_on_startup()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
     liquidity_pb2_grpc.add_LiquidityServiceServicer_to_server(LiquidityServicer(), server)

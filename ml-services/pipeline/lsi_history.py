@@ -38,11 +38,35 @@ def _normalize_snapshot(row: pd.Series) -> dict[str, Any]:
     return snapshot
 
 
+def _status_from_lsi(lsi: float) -> str:
+    if lsi >= 70:
+        return "red"
+    if lsi >= 40:
+        return "yellow"
+    return "green"
+
+
 def calculate_lsi_history_from_wide_dataset(wide_df: pd.DataFrame) -> pd.DataFrame:
+    # Batch model prediction over the whole wide_df so rolling/diff features
+    # are computed per-row instead of from a single-row append to the trained CSV.
+    model_lsi_by_date: dict[str, float] = {}
+    try:
+        from lsi_engine import iso_model
+        if iso_model.is_available():
+            model_lsi_by_date = iso_model.predict_lsi_for_wide_df(wide_df)
+    except Exception:
+        model_lsi_by_date = {}
+
     rows: list[dict[str, Any]] = []
     for _, wide_row in wide_df.sort_values("date").iterrows():
         snapshot = _normalize_snapshot(wide_row)
         result = calculate_lsi_from_snapshot(snapshot)
+        # Override LSI with batch model prediction when available.
+        model_lsi = model_lsi_by_date.get(snapshot["date"])
+        if model_lsi is not None:
+            result.lsi = round(max(0.0, min(100.0, float(model_lsi))), 2)
+            result.status = _status_from_lsi(result.lsi)
+            result.model_version = iso_model.MODEL_VERSION
         rows.append({
             "date": snapshot["date"],
             "LSI": result.lsi,
@@ -101,6 +125,14 @@ def persist_lsi_history(wide_df: pd.DataFrame, history_df: pd.DataFrame) -> int:
     from common.database import Database
     from repositories import LSIRepository, ModuleSignalsRepository, ShapRepository
 
+    model_lsi_by_date: dict[str, float] = {}
+    try:
+        from lsi_engine import iso_model
+        if iso_model.is_available():
+            model_lsi_by_date = iso_model.predict_lsi_for_wide_df(wide_df)
+    except Exception:
+        model_lsi_by_date = {}
+
     db = Database()
     db.connect()
     persisted = 0
@@ -113,6 +145,11 @@ def persist_lsi_history(wide_df: pd.DataFrame, history_df: pd.DataFrame) -> int:
                 snapshot = _normalize_snapshot(wide_row)
                 calc_date = datetime.strptime(snapshot["date"], "%Y-%m-%d").date()
                 result = calculate_lsi_from_snapshot(snapshot)
+                model_lsi = model_lsi_by_date.get(snapshot["date"])
+                if model_lsi is not None:
+                    result.lsi = round(max(0.0, min(100.0, float(model_lsi))), 2)
+                    result.status = _status_from_lsi(result.lsi)
+                    result.model_version = iso_model.MODEL_VERSION
                 lsi_row = lsi_repo.upsert_lsi_value(
                     calculation_date=calc_date,
                     lsi=result.lsi,

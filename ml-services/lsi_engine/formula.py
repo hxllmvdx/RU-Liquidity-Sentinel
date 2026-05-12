@@ -119,7 +119,24 @@ def calculate_lsi_from_snapshot(snapshot: dict[str, Any]) -> LSIFormulaResult:
     base_stress = sum(weighted.values())
     adjusted_stress = base_stress * seasonal
     adjusted_stress = adjusted_stress * 1.15
-    lsi = round(max(0.0, min(100.0, _sigmoid_to_100(adjusted_stress))), 2)
+    formula_lsi = round(max(0.0, min(100.0, _sigmoid_to_100(adjusted_stress))), 2)
+
+    # Prefer the trained IsolationForest LSI. Falls back to formula-based
+    # LSI if the model is not available (e.g., bootstrap training failed).
+    lsi = formula_lsi
+    model_version = "explainable-formula-v1"
+    try:
+        from lsi_engine import iso_model
+
+        snap_date = snapshot.get("date")
+        model_lsi = iso_model.lookup_lsi_by_date(snap_date) if snap_date else None
+        if model_lsi is None:
+            model_lsi = iso_model.predict_for_snapshot(snapshot)
+        if model_lsi is not None:
+            lsi = round(max(0.0, min(100.0, float(model_lsi))), 2)
+            model_version = iso_model.MODEL_VERSION
+    except Exception:
+        pass
 
     # M4 contribution is the marginal seasonal effect in stress-score points.
     contribution_values = dict(weighted)
@@ -191,4 +208,5 @@ def calculate_lsi_from_snapshot(snapshot: dict[str, Any]) -> LSIFormulaResult:
         module_contributions=contributions,
         active_flags=flags,
         warnings=warnings,
+        model_version=model_version,
     )

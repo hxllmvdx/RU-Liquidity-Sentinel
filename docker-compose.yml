@@ -113,10 +113,10 @@ services:
             - ./data:/app/data
         healthcheck:
             test: ["CMD-SHELL", "python -c 'import socket; s=socket.create_connection((\"127.0.0.1\", 50051), 2); s.close()'"]
-            interval: 5s
-            timeout: 3s
-            retries: 30
-            start_period: 20s
+            interval: 10s
+            timeout: 5s
+            retries: 120
+            start_period: 1800s
         depends_on:
             db-migrations:
                 condition: service_completed_successfully
