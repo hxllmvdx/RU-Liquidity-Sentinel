@@ -3,22 +3,13 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 
-def send_mail(
-        recipient_mail: str,
-        color: str,
-        point: str
-):
-    """Отправка письма на указанный email"""
+def send_mail(recipient_mail: str,color: str, point: str, answer: str):
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
 
     sender_mail = "matmodtest@gmail.com"
     sender_password = "hzto agrz hcan iwgv"
-    body = f"""
-    Уровень ликвидности: {color}
-
-    Значение стресса: {point}
-    """
+    body = answer
     msg = MIMEMultipart()
     msg["From"] = sender_mail
     msg["To"] = recipient_mail
