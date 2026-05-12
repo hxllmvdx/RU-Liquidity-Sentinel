@@ -5,6 +5,7 @@ export function ActiveFlagsList({ flags }: { flags: ActiveFlag[] }) {
   return (
     <SectionCard title="Активные флаги" description="Открытые флаги стресса по модулям с относительной силой сигнала.">
       <div className="space-y-3">
+        {!flags.length && <p className="text-sm text-muted">Активных флагов по текущему расчёту нет.</p>}
         {flags.map((flag) => (
           <div className="rounded-2xl border bg-slate-50 p-4" key={`${flag.module_id}-${flag.flag_name}`}>
             <div className="flex flex-wrap items-center justify-between gap-3">

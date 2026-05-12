@@ -3,7 +3,7 @@ import type { ShapValue } from "@/shared/types/dashboard";
 
 export function ShapDriversTable({ shapValues }: { shapValues: ShapValue[] }) {
   return (
-    <SectionCard title="Топ-драйверы SHAP" description="Ключевые факторы, которые сильнее всего влияют на текущий расчёт LSI.">
+    <SectionCard title="Топ-драйверы расчёта" description="Факторные вклады, рассчитанные как изменение LSI при нейтрализации признака.">
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="text-left text-muted">
@@ -15,6 +15,11 @@ export function ShapDriversTable({ shapValues }: { shapValues: ShapValue[] }) {
             </tr>
           </thead>
           <tbody>
+            {!shapValues.length && (
+              <tr>
+                <td className="py-4 text-muted" colSpan={4}>Драйверы пока не рассчитаны для текущей даты.</td>
+              </tr>
+            )}
             {shapValues.map((item) => (
               <tr className="border-b last:border-b-0" key={`${item.module_id}-${item.feature_name}`}>
                 <td className="py-3">{item.feature_name}</td>

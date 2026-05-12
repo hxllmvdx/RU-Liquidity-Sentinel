@@ -79,7 +79,7 @@ services:
             redis:
                 condition: service_healthy
             ml-services:
-                condition: service_started
+                condition: service_healthy
         ports:
             - "${BACKEND_PORT}:8080"
 
@@ -91,9 +91,32 @@ services:
             - .env
         environment:
             ML_GRPC_PORT: 50051
+            # Important: override .env DATABASE_URL. Inside Docker, localhost is the ml-services
+            # container itself, not PostgreSQL. Use the postgres service DNS name.
+            DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ru_liquidity_sentinel}?sslmode=disable
+            POSTGRES_HOST: postgres
+            POSTGRES_PORT: 5432
+            POSTGRES_DB: ${POSTGRES_DB:-ru_liquidity_sentinel}
+            POSTGRES_USER: ${POSTGRES_USER:-postgres}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+            POSTGRES_SSLMODE: disable
+            RLS_BOOTSTRAP_HISTORY_ON_STARTUP: ${RLS_BOOTSTRAP_HISTORY_ON_STARTUP:-true}
+            RLS_BOOTSTRAP_HISTORY_FROM: ${RLS_BOOTSTRAP_HISTORY_FROM:-2021-01-01}
+            RLS_BOOTSTRAP_RUN_HISTORICAL_PARSERS: ${RLS_BOOTSTRAP_RUN_HISTORICAL_PARSERS:-true}
+            RLS_BOOTSTRAP_FORCE_HISTORICAL_PARSERS: ${RLS_BOOTSTRAP_FORCE_HISTORICAL_PARSERS:-true}
+            RLS_BOOTSTRAP_MIN_HISTORY_ROWS: ${RLS_BOOTSTRAP_MIN_HISTORY_ROWS:-1000}
+            RLS_PROCESSING_SCRIPT_TIMEOUT_SECONDS: ${RLS_PROCESSING_SCRIPT_TIMEOUT_SECONDS:-1200}
             OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
             OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
             PYTHONPATH: /app/ml-services:/app/ml-services/gen/python
+        volumes:
+            - ./data:/app/data
+        healthcheck:
+            test: ["CMD-SHELL", "python -c 'import socket; s=socket.create_connection((\"127.0.0.1\", 50051), 2); s.close()'"]
+            interval: 5s
+            timeout: 3s
+            retries: 30
+            start_period: 20s
         depends_on:
             db-migrations:
                 condition: service_completed_successfully

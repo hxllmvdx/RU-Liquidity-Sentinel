@@ -1,13 +1,12 @@
 "use client";
 
-import { Blocks, FlaskConical, LayoutDashboard, LineChart, MessageSquareText, Radar } from "lucide-react";
+import { Blocks, FlaskConical, LayoutDashboard, MessageSquareText, Radar } from "lucide-react";
 import { NavLink } from "@/app-shell/NavLink";
 import { ROUTES } from "@/shared/config/routes";
 
 const items = [
   { href: ROUTES.dashboard, label: "Дашборд", icon: LayoutDashboard },
   { href: ROUTES.modules, label: "Модули", icon: Blocks },
-  { href: ROUTES.forecast, label: "Прогноз", icon: LineChart },
   { href: ROUTES.scenario, label: "Сценарий", icon: FlaskConical },
   { href: ROUTES.backtest, label: "Бэктест", icon: Radar },
   { href: ROUTES.analyst, label: "Аналитик", icon: MessageSquareText }

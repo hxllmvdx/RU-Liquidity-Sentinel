@@ -18,5 +18,3 @@
 **/coverage
 **/*.log
 frontend/tsconfig.tsbuildinfo
-data/raw
-data/processed

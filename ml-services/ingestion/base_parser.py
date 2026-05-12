@@ -85,9 +85,11 @@ class BaseParser(ABC):
     @classmethod
     def build_default_parsers(cls, db: Database | None = None) -> list["BaseParser"]:
         from ingestion.cbr.keyrate_parser import KeyRateParser
+        from ingestion.cbr.liquidity_parser import LiquidityParser
         from ingestion.cbr.repo_parser import RepoParser
         from ingestion.cbr.reserves_parser import ReservesParser
         from ingestion.cbr.ruonia_parser import RuoniaParser
+        from ingestion.cbr.sors_parser import SorsParser
         from ingestion.minfin.ofz_parser import OFZParser
         from ingestion.nalog.tax_calendar_parser import TaxCalendarParser
         from ingestion.roskazna.treasury_parser import TreasuryParser
@@ -97,6 +99,8 @@ class BaseParser(ABC):
             KeyRateParser(db=db),
             RepoParser(db=db),
             ReservesParser(db=db),
+            LiquidityParser(db=db),
+            SorsParser(db=db),
             OFZParser(db=db),
             TaxCalendarParser(db=db),
             TreasuryParser(db=db),

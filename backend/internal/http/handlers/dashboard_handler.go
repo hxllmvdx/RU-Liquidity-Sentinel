@@ -17,7 +17,7 @@ func NewDashboardHandler(dashboardService *service.DashboardService) *DashboardH
 
 func (h *DashboardHandler) GetCurrentDashboard(c *gin.Context) {
 	includeShap := parseBoolQuery(c, "include_shap", true)
-	includeForecast := parseBoolQuery(c, "include_forecast", true)
+	includeForecast := parseBoolQuery(c, "include_forecast", false)
 	includeComment := parseBoolQuery(c, "include_comment", true)
 
 	resp, err := h.dashboardService.GetCurrentDashboard(c.Request.Context(), includeShap, includeForecast, includeComment)

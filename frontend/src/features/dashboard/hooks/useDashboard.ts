@@ -7,14 +7,14 @@ import { useLsiHistory } from "@/features/dashboard/hooks/useLsiHistory";
 
 export function useDashboard() {
   const to = format(new Date(), "yyyy-MM-dd");
-  const from = format(subDays(new Date(), 180), "yyyy-MM-dd");
+  const from = format(subDays(new Date(), 7), "yyyy-MM-dd");
 
   const dashboardQuery = useQuery({
     queryKey: ["dashboard", "current"],
     queryFn: getCurrentDashboard
   });
 
-  const historyQuery = useLsiHistory({ from, to, limit: 180, offset: 0 }, "dashboard");
+  const historyQuery = useLsiHistory({ from, to, limit: 8, offset: 0 }, "dashboard");
 
   return { dashboardQuery, historyQuery };
 }

@@ -19,9 +19,9 @@ if GEN.exists():
     sys.path.insert(0, str(GEN))
 
 try:
-    from liquidity.v1 import common_pb2, lsi_pb2, modules_pb2, liquidity_pb2_grpc
+    from liquidity.v1 import backtest_pb2, common_pb2, lsi_pb2, modules_pb2, liquidity_pb2_grpc
 except Exception as exc:  # pragma: no cover
-    common_pb2 = lsi_pb2 = modules_pb2 = liquidity_pb2_grpc = None
+    backtest_pb2 = common_pb2 = lsi_pb2 = modules_pb2 = liquidity_pb2_grpc = None
     IMPORT_ERROR = exc
 else:
     IMPORT_ERROR = None
@@ -53,7 +53,14 @@ def _lsi_response(result: Any):
                 contribution_percent=float(c.get("contribution_percent", 0.0)),
             ) for c in result.contributions
         ],
-        shap_values=[],
+        shap_values=[
+            lsi_pb2.ShapValue(
+                feature_name=str(item.get("feature_name", "")),
+                module_id=_module(item.get("module_id")),
+                value=float(item.get("value", 0.0)),
+                abs_value=float(item.get("abs_value", 0.0)),
+            ) for item in getattr(result, "shap_values", [])
+        ],
         active_flags=[
             modules_pb2.ActiveFlag(
                 flag_name=str(f.get("flag_name", "")),
@@ -78,59 +85,228 @@ class LiquidityServicer(liquidity_pb2_grpc.LiquidityServiceServicer):
         return lsi_pb2.RecalculateLSIResponse(result=_lsi_response(result), updated_sources=result.updated_sources)
 
     def GetCurrentLSI(self, request, context):
-        result = run_latest_recalculation(recalculate_shap=request.include_shap, regenerate_comment=request.include_comment)
-        return _lsi_response(result)
+        try:
+            from common.database import Database
+            from repositories import LSIRepository, ModuleSignalsRepository, ShapRepository
+
+            db = Database()
+            db.connect()
+            try:
+                lsi_repo = LSIRepository(db)
+                signals_repo = ModuleSignalsRepository(db)
+                shap_repo = ShapRepository(db)
+                latest = lsi_repo.get_latest_lsi()
+                if latest is None:
+                    result = run_latest_recalculation(recalculate_shap=request.include_shap, regenerate_comment=request.include_comment)
+                    return _lsi_response(result)
+                contributions = lsi_repo.get_module_contributions(latest["id"])
+                shap_values = shap_repo.get_top_shap_values(latest["id"], limit=20) if request.include_shap else []
+                flags = signals_repo.get_active_flags(flag_date=latest["calculation_date"])
+            finally:
+                db.close()
+
+            class Obj:
+                pass
+            obj = Obj()
+            obj.date = latest["calculation_date"].isoformat()
+            obj.lsi = float(latest["lsi"])
+            obj.status = str(latest["status"])
+            obj.confidence = float(latest.get("confidence") or 0.0)
+            obj.auto_comment = latest.get("auto_comment") if request.include_comment else ""
+            obj.contributions = contributions
+            obj.shap_values = shap_values
+            obj.active_flags = flags
+            return _lsi_response(obj)
+        except Exception:
+            result = run_latest_recalculation(recalculate_shap=request.include_shap, regenerate_comment=request.include_comment)
+            return _lsi_response(result)
 
     def GetLSIHistory(self, request, context):
         import pandas as pd
-        path = ROOT.parents[0] / "data" / "processed" / "dashboard" / "lsi_dashboard.csv"
         points = []
-        if path.exists():
-            df = pd.read_csv(path)
-            for _, row in df.tail(request.pagination.limit or 500).iterrows():
-                points.append(lsi_pb2.LSIHistoryPoint(date=str(row.get("date", "")), lsi=float(row.get("LSI", 0.0)), status=_status(row.get("status", "green")), confidence=float(row.get("confidence", 0.0))))
+        try:
+            from common.database import Database
+            from repositories import LSIRepository
+
+            db = Database()
+            db.connect()
+            try:
+                repo = LSIRepository(db)
+                from_value = getattr(request.range, "from") if request.HasField("range") else "2021-01-01"
+                to_value = getattr(request.range, "to") if request.HasField("range") else pd.Timestamp.today().date().isoformat()
+                limit = request.pagination.limit or 500
+                offset = request.pagination.offset or 0
+                history = repo.get_lsi_history(pd.to_datetime(from_value).date(), pd.to_datetime(to_value).date(), limit=limit, offset=offset)
+            finally:
+                db.close()
+            for row in history:
+                points.append(lsi_pb2.LSIHistoryPoint(date=row["calculation_date"].isoformat(), lsi=float(row.get("lsi", 0.0)), status=_status(row.get("status", "green")), confidence=float(row.get("confidence", 0.0) or 0.0)))
+        except Exception:
+            pass
         return lsi_pb2.GetLSIHistoryResponse(points=points)
 
     def GetModuleSignals(self, request, context):
-        import pandas as pd
-        code = MODULE_CODE.get(int(request.module_id), "M1").lower()
-        path = ROOT.parents[0] / "data" / "processed" / "dashboard" / f"{code}_dashboard.csv"
         signals = []
+        active_flags = []
+        try:
+            import pandas as pd
+            from common.database import Database
+            from repositories import ModuleSignalsRepository
+            db = Database()
+            db.connect()
+            try:
+                repo = ModuleSignalsRepository(db)
+                module_code = MODULE_CODE.get(int(request.module_id), "M1")
+                module_id = {"M1": "M1_RESERVES", "M2": "M2_REPO", "M3": "M3_OFZ", "M4": "M4_TAX", "M5": "M5_TREASURY"}[module_code]
+                from_value = getattr(request.range, "from") if request.HasField("range") else "2021-01-01"
+                to_value = getattr(request.range, "to") if request.HasField("range") else datetime.utcnow().date().isoformat()
+                rows = repo.get_signals(module_id, pd.to_datetime(from_value).date(), pd.to_datetime(to_value).date())
+                flags = repo.get_active_flags(module_id=module_id)
+            finally:
+                db.close()
+            for row in rows:
+                signals.append(modules_pb2.ModuleSignal(date=row["signal_date"].isoformat(), module_id=request.module_id, signal_name=str(row["signal_name"]), raw_value=float(row.get("raw_value") or 0.0), mad_score=float(row.get("mad_score") or 0.0), flag=bool(row.get("flag")), unit=str(row.get("unit") or "")))
+            for row in flags:
+                active_flags.append(modules_pb2.ActiveFlag(flag_name=str(row["flag_name"]), module_id=request.module_id, description=str(row.get("description") or ""), severity=float(row.get("severity") or 0.0)))
+        except Exception:
+            pass
+        return modules_pb2.GetModuleSignalsResponse(module_id=request.module_id, signals=signals, active_flags=active_flags)
+
+
+    def GetBacktest(self, request, context):
+        import pandas as pd
+        from pipeline.history_bootstrap import bootstrap_full_history
+
+        def _episode_range(episode: int) -> tuple[str, str]:
+            if episode == backtest_pb2.STRESS_EPISODE_DECEMBER_2014:
+                return "2014-12-01", "2014-12-31"
+            if episode == backtest_pb2.STRESS_EPISODE_FEBRUARY_MARCH_2022:
+                return "2022-02-01", "2022-03-31"
+            if episode == backtest_pb2.STRESS_EPISODE_AUGUST_2023:
+                return "2023-08-01", "2023-08-31"
+            if request.HasField("custom_range"):
+                return getattr(request.custom_range, "from") or "2021-01-01", request.custom_range.to or pd.Timestamp.today().date().isoformat()
+            return "2021-01-01", pd.Timestamp.today().date().isoformat()
+
+        date_from, date_to = _episode_range(int(request.episode))
+        path = ROOT.parents[0] / "data" / "processed" / "dashboard" / "lsi_dashboard.csv"
+        if not path.exists():
+            bootstrap_full_history(persist=True)
+
+        df = pd.DataFrame(columns=["date", "LSI", "status", "confidence"])
         if path.exists():
             df = pd.read_csv(path)
-            for _, row in df.iterrows():
-                for col, value in row.items():
-                    if col in {"date", "source_date", "status"}:
-                        continue
-                    try:
-                        numeric = float(value)
-                    except Exception:
-                        continue
-                    signals.append(modules_pb2.ModuleSignal(date=str(row.get("date", "")), module_id=request.module_id, signal_name=str(col), raw_value=numeric, mad_score=numeric if "MAD_score" in col else 0.0, flag=bool(numeric) if "Flag" in col else False, unit=""))
-        return modules_pb2.GetModuleSignalsResponse(module_id=request.module_id, signals=signals, active_flags=[])
+        if not df.empty and "date" in df.columns:
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+            df = df.dropna(subset=["date"]).sort_values("date")
+            df = df[(df["date"] >= pd.to_datetime(date_from)) & (df["date"] <= pd.to_datetime(date_to))]
+
+        points = [
+            lsi_pb2.LSIHistoryPoint(
+                date=row["date"].date().isoformat(),
+                lsi=float(row.get("LSI", 0.0)),
+                status=_status(row.get("status", "green")),
+                confidence=float(row.get("confidence", 0.0)),
+            )
+            for _, row in df.iterrows()
+        ]
+
+        metrics = []
+        events = []
+        conclusion = "Нет данных LSI для выбранного периода. Сначала загрузите историю через BaseParser historical mode."
+        if points:
+            values = [p.lsi for p in points]
+            metrics = [
+                backtest_pb2.BacktestMetric(name="points", value=float(len(values)), unit="count"),
+                backtest_pb2.BacktestMetric(name="average_lsi", value=float(sum(values) / len(values)), unit="lsi_points"),
+                backtest_pb2.BacktestMetric(name="max_lsi", value=float(max(values)), unit="lsi_points"),
+                backtest_pb2.BacktestMetric(name="min_lsi", value=float(min(values)), unit="lsi_points"),
+            ]
+            max_point = max(points, key=lambda p: p.lsi)
+            events = [
+                backtest_pb2.BacktestEvent(
+                    date=max_point.date,
+                    title="Пик LSI в выбранном периоде",
+                    description="Максимальное значение Liquidity Stress Index внутри backtest range.",
+                    lsi=max_point.lsi,
+                    status=max_point.status,
+                )
+            ]
+            conclusion = f"Backtest построен по истории LSI за {date_from}..{date_to}: точек={len(values)}, max={max(values):.2f}, avg={sum(values)/len(values):.2f}."
+
+        avg_contribs = []
+        # If dashboard history has contribution columns, expose period averages.
+        contrib_columns = [
+            ("M1_contribution", 1, "M1_RESERVES"),
+            ("M2_contribution", 2, "M2_REPO"),
+            ("M3_contribution", 3, "M3_OFZ"),
+            ("M4_effect", 4, "M4_TAX"),
+            ("M5_contribution", 5, "M5_TREASURY"),
+        ]
+        for col, module_id, name in contrib_columns:
+            if col in df.columns and not df.empty:
+                value = float(pd.to_numeric(df[col], errors="coerce").fillna(0.0).mean())
+                avg_contribs.append(lsi_pb2.ModuleContribution(module_id=module_id, module_name=name, contribution_value=value, contribution_percent=0.0))
+
+        return backtest_pb2.BacktestResponse(
+            episode=request.episode,
+            range=common_pb2.DateRange(**{"from": date_from, "to": date_to}),
+            lsi_history=points,
+            metrics=metrics,
+            events=events,
+            average_contributions=avg_contribs,
+            conclusion=conclusion,
+        )
 
     def GetAllModulesSnapshot(self, request, context):
-        from pipeline.latest_snapshot import build_latest_snapshot
-        snap = build_latest_snapshot()
+        try:
+            from common.database import Database
+            from repositories import ModuleSignalsRepository
+            db = Database()
+            db.connect()
+            try:
+                repo = ModuleSignalsRepository(db)
+                latest_rows = repo.get_latest_signals()
+            finally:
+                db.close()
+            signal_map: dict[str, list[Any]] = {}
+            latest_date = ""
+            for row in latest_rows:
+                latest_date = max(latest_date, row["signal_date"].isoformat())
+                signal_map.setdefault(row["module_id"], []).append(row)
+        except Exception:
+            signal_map = {}
+            latest_date = ""
         modules = []
         for n in range(1, 6):
             code = MODULE_CODE[n]
             signals = []
-            for key, value in snap.items():
-                if key.startswith(code + "_") and key not in {f"{code}_date", f"{code}_status"}:
-                    try:
-                        numeric = float(value)
-                    except Exception:
-                        numeric = 1.0 if bool(value) else 0.0
-                    signals.append(modules_pb2.ModuleSignal(date=snap.get(f"{code}_date") or snap["date"], module_id=n, signal_name=key[3:], raw_value=numeric, mad_score=numeric if "MAD_score" in key else 0.0, flag=bool(numeric) if "Flag" in key else False, unit=""))
+            module_id = {"M1": "M1_RESERVES", "M2": "M2_REPO", "M3": "M3_OFZ", "M4": "M4_TAX", "M5": "M5_TREASURY"}[code]
+            for row in signal_map.get(module_id, []):
+                signals.append(modules_pb2.ModuleSignal(date=row["signal_date"].isoformat(), module_id=n, signal_name=str(row["signal_name"]), raw_value=float(row.get("raw_value") or 0.0), mad_score=float(row.get("mad_score") or 0.0), flag=bool(row.get("flag")), unit=str(row.get("unit") or "")))
             modules.append(modules_pb2.ModuleSnapshot(module_id=n, module_name=code, module_score=0.0, signals=signals, active_flags=[]))
-        return modules_pb2.GetAllModulesSnapshotResponse(date=snap["date"], modules=modules)
+        return modules_pb2.GetAllModulesSnapshotResponse(date=latest_date, modules=modules)
 
+
+
+def bootstrap_history_on_startup() -> None:
+    import os
+    enabled = os.getenv("RLS_BOOTSTRAP_HISTORY_ON_STARTUP", "true").strip().lower() in {"1", "true", "yes", "y", "on"}
+    if not enabled:
+        logger.info("Startup LSI history bootstrap disabled")
+        return
+    try:
+        from pipeline.history_bootstrap import bootstrap_full_history
+        result = bootstrap_full_history(persist=True)
+        logger.info("Startup LSI history bootstrap result: %s", result)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Startup LSI history bootstrap failed: %s", exc, exc_info=True)
 
 def serve() -> None:
     if IMPORT_ERROR is not None:
         raise RuntimeError(f"Python protobuf stubs are not generated or importable: {IMPORT_ERROR}")
     settings = Settings()
+    bootstrap_history_on_startup()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
     liquidity_pb2_grpc.add_LiquidityServiceServicer_to_server(LiquidityServicer(), server)
     server.add_insecure_port(f"[::]:{settings.ml_grpc_port}")

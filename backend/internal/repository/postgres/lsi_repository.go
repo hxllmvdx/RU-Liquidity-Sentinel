@@ -67,7 +67,7 @@ func (r *LSIRepository) GetLSIHistory(ctx context.Context, from, to time.Time, l
 	const query = `SELECT id, calculation_date, lsi, status, confidence, auto_comment, model_version, calculated_at, created_at, updated_at
 	FROM lsi_values
 	WHERE calculation_date BETWEEN $1 AND $2
-	ORDER BY calculation_date DESC
+	ORDER BY calculation_date ASC
 	LIMIT $3 OFFSET $4`
 
 	var rows []lsiValueRow

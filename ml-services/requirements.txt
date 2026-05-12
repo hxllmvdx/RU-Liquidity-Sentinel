@@ -21,3 +21,5 @@ loguru
 pyarrow
 pyyaml
 pytest
+
+openai

@@ -5,7 +5,7 @@ import type { DashboardResponse } from "@/shared/types/dashboard";
 
 export function getCurrentDashboard(): Promise<DashboardResponse> {
   return apiRequest({
-    path: "/api/dashboard/current?include_shap=true&include_forecast=true&include_comment=true",
+    path: "/api/dashboard/current?include_shap=true&include_forecast=false&include_comment=true",
     schema: dashboardResponseSchema,
     mockData: mockDashboard
   });

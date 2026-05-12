@@ -21,7 +21,8 @@ class LiquidityParser(BaseParser):
     source_code = "CBR_BANKING_LIQUIDITY"
     path = "/hd_base/bliquidity/"
 
-    def __init__(self, client: CbrClient | None = None) -> None:
+    def __init__(self, client: CbrClient | None = None, db=None) -> None:
+        super().__init__(db=db)
         self.client = client or CbrClient()
 
     def fetch(self, date_from: date, date_to: date) -> list[CbrBankingLiquidityRecord]:

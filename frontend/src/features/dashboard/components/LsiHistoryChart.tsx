@@ -6,7 +6,7 @@ import type { LsiHistoryPoint } from "@/shared/types/lsi";
 
 export function LsiHistoryChart({ points }: { points: LsiHistoryPoint[] }) {
   return (
-    <SectionCard title="История LSI" description="История индекса со справочными границами 40 и 70 для перехода между зонами.">
+    <SectionCard title="LSI за последнюю неделю" description="Недельная динамика индекса со справочными границами 40 и 70.">
       <ReactECharts
         option={{
           tooltip: { trigger: "axis" },

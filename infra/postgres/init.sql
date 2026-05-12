@@ -14,3 +14,4 @@
 \ir files/010_rag_documents.sql
 \ir files/011_indexes.sql
 \ir files/012_drop_raw_observations.sql
+\ir files/013_remove_demo_seed_rows.sql

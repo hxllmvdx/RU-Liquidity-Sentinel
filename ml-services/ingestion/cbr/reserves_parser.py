@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+import csv
 from pathlib import Path
 
 from bs4 import BeautifulSoup
@@ -106,27 +107,44 @@ class ReservesParser(BaseParser):
     def parse_latest(self, raw: RawFetchResult) -> list[RawObservation]:
         return self.parse_html(str(raw.content), latest_only=True)
 
+    def save(self, observations: list[RawObservation], date_from: date, date_to: date, out_dir: Path | None = None) -> Path:
+        base_dir = Path(out_dir) if out_dir else self.default_out_dir
+        output_path = base_dir / "cbr" / "reserves" / f"cbr_reserves_{date_from.isoformat()}_{date_to.isoformat()}.csv"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with output_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["observation_date", "actual_avg_balances", "required_reserves", "reserves_on_accounts", "reserves_spread"])
+            writer.writeheader()
+            by_date: dict[date, dict[str, float | None]] = {}
+            for item in observations:
+                row = by_date.setdefault(item.observation_date, {"observation_date": item.observation_date.isoformat()})
+                row[item.metric_name] = item.metric_value
+            for key in sorted(by_date):
+                writer.writerow(by_date[key])
+        return output_path
+
     def run_latest(self, out_dir: Path | None = None) -> ParserRunResult:
-        del out_dir
         observations = self.parse_latest(self.fetch_latest())
         latest_date = max((item.observation_date for item in observations), default=None)
+        output_path = self.save(observations, latest_date or self.utc_now().date(), latest_date or self.utc_now().date(), out_dir=out_dir) if observations else None
         return ParserRunResult(
             source_code=self.source_code,
             status=SourceStatus.SUCCESS if observations else SourceStatus.STALE,
             record_count=len(observations),
+            output_path=output_path,
             requested_from=latest_date,
             requested_to=latest_date,
             latest_observation_date=latest_date,
         )
 
     def run_historical(self, date_from: date, date_to: date, out_dir: Path | None = None) -> ParserRunResult:
-        del out_dir
         observations = self.parse_html(str(self.fetch(date_from, date_to).content), latest_only=False)
         latest_date = max((item.observation_date for item in observations), default=None)
+        output_path = self.save(observations, date_from, date_to, out_dir=out_dir) if observations else None
         return ParserRunResult(
             source_code=self.source_code,
             status=SourceStatus.SUCCESS if observations else SourceStatus.STALE,
             record_count=len(observations),
+            output_path=output_path,
             requested_from=date_from,
             requested_to=date_to,
             latest_observation_date=latest_date,

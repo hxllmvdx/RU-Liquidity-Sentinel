@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+import csv
+from pathlib import Path
 
 from common.db_models import RawFetchResult, RawObservation, SourceStatus
 from ingestion.base_parser import BaseParser, ParserRunResult
@@ -55,15 +57,32 @@ class TreasuryParser(BaseParser):
                 )
         return observations
 
+    def save(self, records, date_from: date, date_to: date, out_dir: Path | None = None) -> Path:
+        base_dir = Path(out_dir) if out_dir else self.default_out_dir
+        output_path = base_dir / "roskazna" / "treasury" / f"roskazna_treasury_{date_from.isoformat()}_{date_to.isoformat()}.csv"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with output_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["observation_date", "placement_volume_bln_rub", "participant_banks_count"])
+            writer.writeheader()
+            for record in records:
+                writer.writerow({
+                    "observation_date": record.observation_date.isoformat(),
+                    "placement_volume_bln_rub": record.placement_volume_bln_rub,
+                    "participant_banks_count": record.participant_banks_count,
+                })
+        return output_path
+
     def run_latest(self, out_dir=None) -> ParserRunResult:
         date_to = self.utc_now().date()
         date_from = date_to - timedelta(days=7)
         records = self.parser.fetch(date_from, date_to)
         latest_date = max((record.observation_date for record in records), default=None)
+        output_path = self.save(records, date_from, date_to, out_dir=out_dir) if records else None
         return ParserRunResult(
             source_code=self.source_code,
             status=SourceStatus.SUCCESS if records else SourceStatus.STALE,
             record_count=len(records),
+            output_path=output_path,
             requested_from=date_from,
             requested_to=date_to,
             latest_observation_date=latest_date,
@@ -72,10 +91,12 @@ class TreasuryParser(BaseParser):
     def run_historical(self, date_from: date, date_to: date, out_dir=None) -> ParserRunResult:
         records = self.parser.fetch(date_from, date_to)
         latest_date = max((record.observation_date for record in records), default=None)
+        output_path = self.save(records, date_from, date_to, out_dir=out_dir) if records else None
         return ParserRunResult(
             source_code=self.source_code,
             status=SourceStatus.SUCCESS if records else SourceStatus.STALE,
             record_count=len(records),
+            output_path=output_path,
             requested_from=date_from,
             requested_to=date_to,
             latest_observation_date=latest_date,
