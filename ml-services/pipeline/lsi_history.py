@@ -11,6 +11,7 @@ import pandas as pd
 from explainability.shap_explainer import calculate_formula_shap
 from lsi_engine.formula import calculate_lsi_from_snapshot
 from pipeline.build_wide_dataset import build_wide_lsi_dataset, repo_root
+from rag.lsi_rag_indexer import rebuild_lsi_rag_index
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +151,11 @@ def build_and_persist_lsi_history(persist: bool = True) -> dict[str, Any]:
     history_df = calculate_lsi_history_from_wide_dataset(wide_df)
     dashboard_path = save_lsi_history_dashboard(history_df)
     persisted_rows = persist_lsi_history(wide_df, history_df) if persist else 0
+    if persist:
+        try:
+            rebuild_lsi_rag_index(limit_days=30)
+        except Exception:
+            pass
     return {
         "rows": int(len(history_df)),
         "persisted": int(persisted_rows),

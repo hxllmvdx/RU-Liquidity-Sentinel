@@ -10,6 +10,8 @@ import grpc
 from common.config import Settings
 from common.logging import get_logger
 from pipeline.latest_recalculation import run_latest_recalculation
+from rag.analyst_service import answer_question
+from rag.lsi_rag_indexer import rebuild_lsi_rag_index
 
 logger = get_logger(__name__)
 
@@ -19,9 +21,9 @@ if GEN.exists():
     sys.path.insert(0, str(GEN))
 
 try:
-    from liquidity.v1 import backtest_pb2, common_pb2, lsi_pb2, modules_pb2, liquidity_pb2_grpc
+    from liquidity.v1 import analyst_pb2, backtest_pb2, common_pb2, lsi_pb2, modules_pb2, liquidity_pb2_grpc
 except Exception as exc:  # pragma: no cover
-    backtest_pb2 = common_pb2 = lsi_pb2 = modules_pb2 = liquidity_pb2_grpc = None
+    analyst_pb2 = backtest_pb2 = common_pb2 = lsi_pb2 = modules_pb2 = liquidity_pb2_grpc = None
     IMPORT_ERROR = exc
 else:
     IMPORT_ERROR = None
@@ -286,6 +288,48 @@ class LiquidityServicer(liquidity_pb2_grpc.LiquidityServiceServicer):
                 signals.append(modules_pb2.ModuleSignal(date=row["signal_date"].isoformat(), module_id=n, signal_name=str(row["signal_name"]), raw_value=float(row.get("raw_value") or 0.0), mad_score=float(row.get("mad_score") or 0.0), flag=bool(row.get("flag")), unit=str(row.get("unit") or "")))
             modules.append(modules_pb2.ModuleSnapshot(module_id=n, module_name=code, module_score=0.0, signals=signals, active_flags=[]))
         return modules_pb2.GetAllModulesSnapshotResponse(date=latest_date, modules=modules)
+
+    def GenerateAutoComment(self, request, context):
+        module_contributions = [
+            f"{item.name}={item.value:.2f}"
+            for item in request.module_contributions
+        ]
+        active_flags = ", ".join(request.active_flags) if request.active_flags else "нет"
+        upcoming_events = ", ".join(request.upcoming_events) if request.upcoming_events else "нет"
+        prompt = (
+            f"Текущий LSI: {request.lsi:.2f}. Статус: {_status(request.status).lower()}. "
+            f"Вклады модулей: {', '.join(module_contributions) or 'нет'}. "
+            f"Активные флаги: {active_flags}. Ближайшие события: {upcoming_events}."
+        )
+        try:
+            from llm.client import LLMClient
+            comment = (LLMClient().generate(
+                "Сформируй краткий аналитический комментарий для dashboard RU Liquidity Sentinel. "
+                "Пиши на русском, опирайся только на данные.\n\n" + prompt
+            ) or "").strip()
+        except Exception:
+            comment = prompt
+        return analyst_pb2.AutoCommentResponse(comment=comment, retrospective="", outlook="")
+
+    def ChatAnalyst(self, request, context):
+        try:
+            rebuild_lsi_rag_index(limit_days=30)
+        except Exception:
+            pass
+        result = answer_question(request.user_message)
+        contexts = []
+        for idx, item in enumerate(result.get("citations", [])[:10]):
+            contexts.append(lsi_pb2.ChatContext(
+                source_type="rag",
+                title=f"context_{idx + 1}",
+                content=str(item),
+                relevance=max(0.1, 1.0 - idx * 0.1),
+            ))
+        return analyst_pb2.ChatResponse(
+            session_id=request.session_id or "",
+            answer=result.get("answer", "Недостаточно данных для ответа."),
+            contexts=contexts,
+        )
 
 
 

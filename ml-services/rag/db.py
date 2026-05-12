@@ -1,22 +1,9 @@
-import psycopg2
+from __future__ import annotations
 
-DB_CONFIG = {
-    "dbname": "liquidity",
-    "user": "admin",
-    "password": "secret",
-    "host": "localhost",
-    "port": 5432
-}
+from common.database import Database
 
-conn = psycopg2.connect(**DB_CONFIG)
 
-def get_connection():
-    """Возвращает текущее соединение"""
-    global conn
-    if conn.closed:
-        conn = psycopg2.connect(**DB_CONFIG)
-    return conn
-
-def get_cursor():
-    """Возвращает новый курсор от текущего соединения."""
-    return get_connection().cursor()
+def get_database() -> Database:
+    db = Database()
+    db.connect()
+    return db

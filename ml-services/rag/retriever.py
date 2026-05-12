@@ -1,32 +1,31 @@
-from embeddings import embed_text
-import psycopg2
-from db import get_cursore
+from __future__ import annotations
 
-def retrieve_context(query: str, top_k: int =5):
-    query_emb = embed_text(query)
-    cur = get_cursore()
-    
+from common.db_errors import DatabaseQueryError
+from rag.db import get_database
+from repositories.rag_repository import RagRepository
+
+
+def retrieve_context(query: str, top_k: int = 5) -> dict:
+    db = get_database()
     try:
-        cur.execute("""
-            SELECT title, source_url, content, metadata,
-                1 - (embedding <=> %s::vector) AS similarity
-            FROM rag_documents
-            ORDER BY similarity DESC
-            LIMIT %s
-        """, (query_emb, top_k))
-        rows = cur.fetchall()
-
-
-        documents = []
-        for row in rows:
-            documents.append({
-                "title": row[0],
-                "source_url": row[1],
-                "content": row[2],
-                "metadata": row[3],
-                "similarity": float(row[4])
-            })
-
-        return {"query": query, "top_k": top_k, "documents": documents}
+        repo = RagRepository(db)
+        try:
+            documents = repo.search_documents_text(query, limit=top_k)
+        except DatabaseQueryError:
+            documents = []
+        return {
+            "query": query,
+            "top_k": top_k,
+            "documents": [
+                {
+                    "source_type": item.get("source_type", ""),
+                    "source_id": item.get("source_id"),
+                    "title": item.get("title", ""),
+                    "content": item.get("content", ""),
+                    "metadata": item.get("metadata") or {},
+                }
+                for item in documents
+            ],
+        }
     finally:
-        cur.close()
+        db.close()

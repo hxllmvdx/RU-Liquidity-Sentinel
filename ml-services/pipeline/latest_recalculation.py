@@ -14,6 +14,7 @@ from lsi_engine.formula import calculate_lsi_from_snapshot
 from explainability.shap_explainer import calculate_formula_shap
 from pipeline.build_wide_dataset import build_wide_lsi_dataset, repo_root
 from pipeline.lsi_history import build_and_persist_lsi_history
+from rag.lsi_rag_indexer import rebuild_lsi_rag_index
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +203,7 @@ def run_latest_recalculation(date: str | None = None, force_reload_sources: bool
     db_warning = None
     try:
         updated_sources = _persist_to_db(snapshot, formula_result, auto_comment=auto_comment, shap_values=shap_values)
+        rebuild_lsi_rag_index(limit_days=30)
     except Exception as exc:
         db_warning = f"PostgreSQL persist failed; CSV fallback used: {exc}"
         logger.warning(db_warning, exc_info=True)

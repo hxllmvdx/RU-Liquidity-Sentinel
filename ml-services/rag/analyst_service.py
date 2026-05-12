@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from rag.lsi_history_context import load_lsi_history_context
+from rag.lsi_rag_indexer import rebuild_lsi_rag_index
 
 try:
     from rag.retriever import retrieve_context
@@ -9,6 +10,10 @@ except Exception:  # pragma: no cover
 
 
 def answer_question(question: str):
+    try:
+        rebuild_lsi_rag_index(limit_days=30)
+    except Exception:
+        pass
     lsi_context = load_lsi_history_context(days=30)
     documents = []
     if retrieve_context is not None:
@@ -32,8 +37,8 @@ def answer_question(question: str):
     try:
         from llm.client import LLMClient
         prompt = (
-            "Ты аналитик RU Liquidity Sentinel. Отвечай кратко и только по контексту. "
-            "Объясни динамику LSI, если вопрос про индекс или стресс ликвидности.\n\n"
+            "Ты аналитик RU Liquidity Sentinel. Отвечай на русском, кратко и строго по контексту. "
+            "Если вопрос про LSI, ликвидность, стресс, драйверы, модули, флаги или историю, опирайся только на предоставленные данные.\n\n"
             f"Вопрос: {question}\n\nКонтекст:\n{context_text}"
         )
         answer = LLMClient().generate(prompt).strip()
